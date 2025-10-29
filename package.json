@@ -1,6 +1,6 @@
 {
   "name": "time-space",
-  "module": "src/index.ts",
+  "module": "src/server/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
@@ -12,8 +12,11 @@
     "typescript": "^5"
   },
   "scripts": {
-    "dev": "bun --hot src/index.ts",
+    "dev": "bun --hot src/server/index.ts",
     "check": "bunx ultracite check",
     "fix": "bun ultracite fix"
+  },
+  "dependencies": {
+    "bun-plugin-tailwind": "^0.1.2"
   }
 }
