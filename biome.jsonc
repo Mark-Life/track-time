@@ -4,6 +4,9 @@
   "files": {
     "includes": ["!node_modules", "!dist", "!build", "!bun.lock"]
   },
+  "javascript": {
+    "globals": ["Bun"]
+  },
   "linter": {
     "rules": {
       "suspicious": {
