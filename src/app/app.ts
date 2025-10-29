@@ -1,4 +1,4 @@
-import type { Entry, Timer, WebSocketMessage } from "../shared/types.ts";
+import type { Entry, Timer, WebSocketMessage } from "~/lib/types.ts";
 
 // DOM elements
 const timerDisplay = document.getElementById("timer-display") as HTMLDivElement;
@@ -79,10 +79,14 @@ function startTimerUI() {
   stopBtn.disabled = false;
 
   // Start updating display
-  if (timerInterval) clearInterval(timerInterval);
+  if (timerInterval) {
+    clearInterval(timerInterval);
+  }
 
   timerInterval = setInterval(() => {
-    if (!activeTimer) return;
+    if (!activeTimer) {
+      return;
+    }
 
     const startTime = new Date(activeTimer.startedAt).getTime();
     const now = Date.now();

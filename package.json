@@ -1,18 +1,21 @@
 {
   "name": "time-space",
-  "module": "src/server/index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
     "@biomejs/biome": "2.3.2",
     "@types/bun": "latest",
-    "ultracite": "6.0.5"
+    "ultracite": "6.0.5",
+    "tailwindcss": "^4.1.16"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "scripts": {
-    "dev": "bun src/server/index.ts",
+    "dev": "bun src/index.ts",
+    "build": "bun run build.ts",
+    "start": "NODE_ENV=production bun src/index.ts",
     "check": "bunx ultracite check",
     "fix": "bun ultracite fix"
   },

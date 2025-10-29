@@ -1,5 +1,5 @@
 import { redis } from "bun";
-import type { Entry, Timer } from "../shared/types.ts";
+import type { Entry, Timer } from "./types.ts";
 
 // Redis connection (uses REDIS_URL env var or defaults to localhost)
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
@@ -10,7 +10,9 @@ redis.connect(REDIS_URL);
 // Get active timer
 export async function getActiveTimer(): Promise<Timer | null> {
   const startedAt = await redis.hget("active:timer", "startedAt");
-  if (!startedAt) return null;
+  if (!startedAt) {
+    return null;
+  }
   return { startedAt: startedAt as string };
 }
 
@@ -25,7 +27,9 @@ export async function startTimer(): Promise<Timer> {
 // Stop timer and save entry
 export async function stopTimer(): Promise<Entry | null> {
   const timer = await getActiveTimer();
-  if (!timer) return null;
+  if (!timer) {
+    return null;
+  }
 
   const endedAt = new Date().toISOString();
   const startTime = new Date(timer.startedAt).getTime();
