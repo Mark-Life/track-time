@@ -130,13 +130,15 @@ function addEntryToList(entry: Entry) {
   const entryElement = document.createElement("div");
   entryElement.innerHTML = entryHTML(entry);
   entriesList.insertBefore(
-    entryElement.firstElementChild!,
+    entryElement.firstElementChild as HTMLElement,
     entriesList.firstChild
   );
 
   // Remove "no entries" message if exists
   const noEntries = entriesList.querySelector(".text-gray-500");
-  if (noEntries) noEntries.remove();
+  if (noEntries) {
+    noEntries.remove();
+  }
 }
 
 // Generate entry HTML

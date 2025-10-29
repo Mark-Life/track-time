@@ -1,11 +1,8 @@
 import { redis } from "bun";
 import type { Entry, Timer } from "./types.ts";
 
-// Redis connection (uses REDIS_URL env var or defaults to localhost)
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
-
 // Initialize Redis connection
-redis.connect(REDIS_URL);
+redis.connect();
 
 // Get active timer
 export async function getActiveTimer(): Promise<Timer | null> {
