@@ -4,7 +4,9 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@biomejs/biome": "2.3.2",
+    "@types/bun": "latest",
+    "ultracite": "6.0.5"
   },
   "peerDependencies": {
     "typescript": "^5"
