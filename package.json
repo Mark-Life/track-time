@@ -1,5 +1,5 @@
 {
-  "name": "time-space",
+  "name": "track-time",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
