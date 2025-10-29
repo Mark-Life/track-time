@@ -3,5 +3,12 @@
   "extends": ["ultracite/core"],
   "files": {
     "includes": ["!node_modules", "!dist", "!build", "!bun.lock"]
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noConsole": "warn"
+      }
+    }
   }
 }

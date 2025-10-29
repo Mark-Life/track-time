@@ -1,6 +1,6 @@
 {
   "name": "time-space",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
@@ -10,5 +10,10 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "check": "bunx ultracite check",
+    "fix": "bun ultracite fix"
   }
 }
