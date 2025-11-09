@@ -46,13 +46,104 @@ const isoToDatetimeLocal = (isoString: string): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
+type DateBoundaries = {
+  today: { year: number; month: number; day: number };
+  yesterday: { year: number; month: number; day: number };
+};
+
+const getDateBoundaries = (): DateBoundaries => {
+  const now = new Date();
+  const today = {
+    year: now.getFullYear(),
+    month: now.getMonth(),
+    day: now.getDate(),
+  };
+
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = {
+    year: yesterdayDate.getFullYear(),
+    month: yesterdayDate.getMonth(),
+    day: yesterdayDate.getDate(),
+  };
+
+  return { today, yesterday };
+};
+
+const formatEntryTime = (
+  isoString: string,
+  durationHours: number,
+  boundaries?: DateBoundaries
+): string => {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+
+  const b = boundaries ?? getDateBoundaries();
+
+  // Check if today
+  if (year === b.today.year && month === b.today.month && day === b.today.day) {
+    return formatTime(date, durationHours, "Today");
+  }
+
+  // Check if yesterday
+  if (
+    year === b.yesterday.year &&
+    month === b.yesterday.month &&
+    day === b.yesterday.day
+  ) {
+    return formatTime(date, durationHours, "Yesterday");
+  }
+
+  // Format as "DD Mon, HH:MM:SS AM/PM" or "DD Mon, HH:MM AM/PM"
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const monthName = monthNames[month];
+  const timeStr = formatTime(date, durationHours);
+  return `${day} ${monthName}, ${timeStr}`;
+};
+
+const formatTime = (date: Date, durationHours: number, prefix = ""): string => {
+  const showSeconds = durationHours <= 0.25; // 15 minutes = 0.25 hours
+
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+  const ampm = hours >= 12 ? "PM" : "AM";
+
+  // Convert to 12-hour format
+  hours %= 12;
+  hours = hours ? hours : 12; // 0 should be 12
+
+  const minutesStr = String(minutes).padStart(2, "0");
+  const secondsStr = String(seconds).padStart(2, "0");
+
+  const timeStr = showSeconds
+    ? `${hours}:${minutesStr}:${secondsStr} ${ampm}`
+    : `${hours}:${minutesStr} ${ampm}`;
+
+  return prefix ? `${prefix}, ${timeStr}` : timeStr;
+};
+
 const entryHTML = (
   entry: Entry,
   projects: Project[] | undefined,
-  isEditing = false
+  isEditing = false,
+  boundaries?: DateBoundaries
 ): string => {
-  const startDate = new Date(entry.startedAt);
-  const endDate = new Date(entry.endedAt);
   const projectName =
     entry.projectId && projects
       ? projects.find((p) => p.id === entry.projectId)?.name
@@ -155,8 +246,8 @@ const entryHTML = (
       <div class="flex justify-between items-center">
         <div>
           ${projectName ? `<div class="text-sm font-semibold text-primary mb-1">${projectName}</div>` : ""}
-          <div class="text-sm text-gray-500">Started: ${startDate.toLocaleString()}</div>
-          <div class="text-sm text-gray-500">Ended: ${endDate.toLocaleString()}</div>
+          <div class="text-sm text-gray-500">Started: ${formatEntryTime(entry.startedAt, entry.duration, boundaries)}</div>
+          <div class="text-sm text-gray-500">Ended: ${formatEntryTime(entry.endedAt, entry.duration, boundaries)}</div>
         </div>
         <div class="flex items-center gap-4">
           <div class="text-md font-bold">${entry.duration.toFixed(2)}h</div>
@@ -193,8 +284,9 @@ export const renderEntries = (
       return;
     }
 
+    const boundaries = getDateBoundaries();
     entriesList.innerHTML = entries
-      .map((entry) => entryHTML(entry, projects))
+      .map((entry) => entryHTML(entry, projects, false, boundaries))
       .join("");
   });
 
@@ -249,7 +341,8 @@ export const renderEntryView = (
       `[data-entry-id="${entry.id}"]`
     ) as HTMLElement;
     if (entryElement) {
-      entryElement.outerHTML = entryHTML(entry, projects, false);
+      const boundaries = getDateBoundaries();
+      entryElement.outerHTML = entryHTML(entry, projects, false, boundaries);
     }
   });
 
@@ -258,8 +351,9 @@ export const addEntryToList = (
   projects: Project[] | undefined = []
 ) =>
   Effect.sync(() => {
+    const boundaries = getDateBoundaries();
     const entryElement = document.createElement("div");
-    entryElement.innerHTML = entryHTML(entry, projects);
+    entryElement.innerHTML = entryHTML(entry, projects, false, boundaries);
     entriesList.insertBefore(
       entryElement.firstElementChild as HTMLElement,
       entriesList.firstChild
