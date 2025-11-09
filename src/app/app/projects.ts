@@ -26,7 +26,7 @@ const projectHTML = (project: Project, isEditing = false): string => {
   if (isEditing) {
     return `
       <div class="p-4 border border-border rounded-lg" data-project-id="${project.id}">
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <input
             type="text"
             class="project-name-input flex-1 px-3 py-2 border border-border rounded bg-background text-foreground"
@@ -34,18 +34,20 @@ const projectHTML = (project: Project, isEditing = false): string => {
             maxlength="50"
             data-project-id="${project.id}"
           />
-          <button
-            class="save-project-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
-            data-project-id="${project.id}"
-          >
-            Save
-          </button>
-          <button
-            class="cancel-edit-project-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
-            data-project-id="${project.id}"
-          >
-            Cancel
-          </button>
+          <div class="flex gap-2">
+            <button
+              class="cancel-edit-project-btn flex-1 sm:flex-none px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
+              data-project-id="${project.id}"
+            >
+              Cancel
+            </button>
+            <button
+              class="save-project-btn flex-1 sm:flex-none px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
+              data-project-id="${project.id}"
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -57,9 +59,9 @@ const projectHTML = (project: Project, isEditing = false): string => {
         <div class="project-name-display cursor-pointer flex-1" data-project-id="${project.id}">
           <span class="text-lg font-medium">${project.name}</span>
         </div>
-        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div class="flex items-center gap-2">
           <button
-            class="edit-project-btn text-white bg-primary p-2 rounded-full hover:bg-primary/80 cursor-pointer flex items-center justify-center"
+            class="edit-project-btn text-foreground bg-primary p-2 rounded-full hover:bg-primary/80 cursor-pointer flex items-center justify-center"
             data-project-id="${project.id}"
             aria-label="Edit project"
           >
