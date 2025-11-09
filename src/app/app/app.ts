@@ -8,8 +8,15 @@ import {
   getTimer,
   startTimer,
   stopTimer,
+  updateEntry,
 } from "./api.ts";
-import { addEntryToList, renderEntries, showPlayButton } from "./dom.ts";
+import {
+  addEntryToList,
+  renderEntries,
+  renderEntryEditForm,
+  renderEntryView,
+  showPlayButton,
+} from "./dom.ts";
 import { entriesList, playPauseBtn } from "./dom-elements.ts";
 import {
   hideOfflineIndicator,
@@ -143,6 +150,16 @@ const initializeApp = Effect.gen(function* () {
           (error) => Effect.logError(`Failed to handle entry:deleted: ${error}`)
         )
       );
+    } else if (message.type === "entry:updated") {
+      const entry = message.data.entry;
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            yield* renderEntryView(entry);
+          }),
+          (error) => Effect.logError(`Failed to handle entry:updated: ${error}`)
+        )
+      );
     }
   };
 
@@ -183,27 +200,119 @@ const initializeApp = Effect.gen(function* () {
     );
   });
 
-  // Delete entry handler (event delegation)
+  // Entry handlers (event delegation)
   entriesList.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    const deleteBtn = target.closest(".delete-entry-btn") as HTMLButtonElement;
-    if (!deleteBtn) {
+
+    // Edit button handler
+    const editBtn = target.closest(".edit-entry-btn") as HTMLButtonElement;
+    if (editBtn) {
+      const entryId = editBtn.getAttribute("data-entry-id");
+      if (!entryId) {
+        return;
+      }
+
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const entries = yield* getEntries;
+            const entry = entries.find((e) => e.id === entryId);
+            if (entry) {
+              yield* renderEntryEditForm(entry);
+            }
+          }),
+          (error) => Effect.logError(`Failed to show edit form: ${error}`)
+        )
+      );
       return;
     }
 
-    const entryId = deleteBtn.getAttribute("data-entry-id");
+    // Cancel button handler
+    const cancelBtn = target.closest(".cancel-edit-btn") as HTMLButtonElement;
+    if (cancelBtn) {
+      const entryId = cancelBtn.getAttribute("data-entry-id");
+      if (!entryId) {
+        return;
+      }
+
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const entries = yield* getEntries;
+            const entry = entries.find((e) => e.id === entryId);
+            if (entry) {
+              yield* renderEntryView(entry);
+            }
+          }),
+          (error) => Effect.logError(`Failed to cancel edit: ${error}`)
+        )
+      );
+      return;
+    }
+
+    // Delete button handler
+    const deleteBtn = target.closest(".delete-entry-btn") as HTMLButtonElement;
+    if (deleteBtn) {
+      const entryId = deleteBtn.getAttribute("data-entry-id");
+      if (!entryId) {
+        return;
+      }
+
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            yield* deleteEntry(entryId);
+            const entries = yield* getEntries;
+            yield* renderEntries(entries);
+          }),
+          (error) => Effect.logError(`Failed to delete entry: ${error}`)
+        )
+      );
+      return;
+    }
+  });
+
+  // Form submission handler (event delegation)
+  entriesList.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    if (!form.classList.contains("edit-entry-form")) {
+      return;
+    }
+
+    const entryId = form.getAttribute("data-entry-id");
     if (!entryId) {
       return;
     }
 
+    const formData = new FormData(form);
+    const startedAtInput = formData.get("startedAt") as string;
+    const endedAtInput = formData.get("endedAt") as string;
+
+    if (!startedAtInput) {
+      return;
+    }
+    if (!endedAtInput) {
+      return;
+    }
+
+    // Convert datetime-local to ISO string
+    const startedAt = new Date(startedAtInput).toISOString();
+    const endedAt = new Date(endedAtInput).toISOString();
+
     Effect.runPromise(
       Effect.catchAll(
         Effect.gen(function* () {
-          yield* deleteEntry(entryId);
-          const entries = yield* getEntries;
-          yield* renderEntries(entries);
+          const updatedEntry = yield* updateEntry(entryId, startedAt, endedAt);
+          yield* renderEntryView(updatedEntry);
         }),
-        (error) => Effect.logError(`Failed to delete entry: ${error}`)
+        (error) =>
+          Effect.gen(function* () {
+            yield* Effect.logError(`Failed to update entry: ${error}`);
+            // On error, reload entries to show current state
+            const entries = yield* getEntries;
+            yield* renderEntries(entries);
+          })
       )
     );
   });

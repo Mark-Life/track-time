@@ -8,6 +8,7 @@ import {
   redisResource,
   startTimer,
   stopTimer,
+  updateEntry,
 } from "./lib/redis.ts";
 import type { WebSocketMessage } from "./lib/types.ts";
 
@@ -75,6 +76,7 @@ const createServer = Effect.gen(function* () {
       },
     },
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: TODO fix me later
     fetch(req: Request, srv: Server) {
       const url = new URL(req.url);
 
@@ -88,10 +90,15 @@ const createServer = Effect.gen(function* () {
       }
 
       // DELETE /api/entries/:id
+      // PUT /api/entries/:id
       const entriesMatch = url.pathname.match(ENTRIES_ID_REGEX);
-      if (entriesMatch && req.method === "DELETE") {
+      if (entriesMatch) {
         const id = entriesMatch[1];
-        if (id) {
+        if (!id) {
+          return new Response("Not Found", { status: 404 });
+        }
+
+        if (req.method === "DELETE") {
           return Effect.runPromise(
             Effect.gen(function* () {
               yield* deleteEntry(id);
@@ -112,6 +119,51 @@ const createServer = Effect.gen(function* () {
                   error instanceof Error
                     ? error.message
                     : "Failed to delete entry",
+              },
+              { status: 500 }
+            )
+          );
+        }
+
+        if (req.method === "PUT") {
+          return Effect.runPromise(
+            Effect.gen(function* () {
+              const body = yield* Effect.tryPromise({
+                try: () =>
+                  req.json() as Promise<{ startedAt: string; endedAt: string }>,
+                catch: (error) =>
+                  new Error(`Failed to parse request body: ${error}`),
+              });
+
+              if (!(body.startedAt && body.endedAt)) {
+                return Response.json(
+                  { error: "startedAt and endedAt are required" },
+                  { status: 400 }
+                );
+              }
+
+              const entry = yield* updateEntry(
+                id,
+                body.startedAt,
+                body.endedAt
+              );
+
+              // Broadcast to all WebSocket clients
+              const message: WebSocketMessage = {
+                type: "entry:updated",
+                data: { entry },
+              };
+              serverInstance?.publish("timer:updates", JSON.stringify(message));
+
+              return Response.json(entry);
+            })
+          ).catch((error) =>
+            Response.json(
+              {
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to update entry",
               },
               { status: 500 }
             )

@@ -70,6 +70,24 @@ export const clearLocalEntries = () =>
     }
   });
 
+export const updateLocalEntry = (updatedEntry: Entry) =>
+  Effect.gen(function* () {
+    const entries = yield* getLocalEntries();
+    yield* Effect.sync(() => {
+      try {
+        const index = entries.findIndex((entry) => entry.id === updatedEntry.id);
+        if (index === -1) {
+          entries.push(updatedEntry);
+        } else {
+          entries[index] = updatedEntry;
+        }
+        localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
+      } catch (error) {
+        throw new Error(`Failed to update entry in localStorage: ${error}`);
+      }
+    });
+  });
+
 export const clearSyncedEntry = (entryId: string) =>
   Effect.gen(function* () {
     const entries = yield* getLocalEntries();

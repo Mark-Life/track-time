@@ -155,6 +155,59 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
     return sorted;
   });
 
+// Update entry
+export const updateEntry = (
+  id: string,
+  startedAt: string,
+  endedAt: string
+): Effect.Effect<Entry, Error> =>
+  Effect.gen(function* () {
+    // Check if entry exists
+    const exists: boolean = yield* Effect.tryPromise({
+      try: () => redis.sismember("entries:list", id),
+      catch: (error) => new Error(`Failed to check if entry exists: ${error}`),
+    });
+
+    if (!exists) {
+      yield* Effect.fail(new Error(`Entry with id ${id} not found`));
+    }
+
+    const startTime = new Date(startedAt).getTime();
+    const endTime = new Date(endedAt).getTime();
+    const duration = (endTime - startTime) / (1000 * 60 * 60);
+
+    if (duration < 0) {
+      yield* Effect.fail(new Error("End time must be after start time"));
+    }
+
+    const entry: Entry = {
+      id,
+      startedAt,
+      endedAt,
+      duration,
+    };
+
+    yield* Effect.tryPromise({
+      try: () =>
+        redis.hset(`entry:${id}`, {
+          id,
+          startedAt: entry.startedAt,
+          endedAt: entry.endedAt,
+          duration: entry.duration.toString(),
+        }),
+      catch: (error) => new Error(`Failed to update entry: ${error}`),
+    });
+
+    yield* Effect.log(`✏️  Updated entry ${id}`);
+    yield* Effect.log(`   Started: ${entry.startedAt}`);
+    yield* Effect.log(`   Ended: ${entry.endedAt}`);
+    yield* Effect.log(
+      `   Duration: ${entry.duration.toFixed(4)} hours (${(entry.duration * 60).toFixed(2)} minutes)`
+    );
+
+    return entry;
+  });
+
 // Delete entry
 export const deleteEntry = (id: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {

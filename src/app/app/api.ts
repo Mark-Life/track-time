@@ -6,6 +6,7 @@ import {
   getTimerFromLocal,
   saveEntryToLocal,
   saveTimerToLocal,
+  updateLocalEntry,
 } from "~/lib/local-storage.ts";
 import type { Entry, Timer } from "~/lib/types.ts";
 
@@ -155,6 +156,63 @@ export const getEntries = Effect.gen(function* () {
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
   );
 });
+
+export const updateEntry = (
+  id: string,
+  startedAt: string,
+  endedAt: string
+): Effect.Effect<Entry, Error> =>
+  Effect.gen(function* () {
+    const startTime = new Date(startedAt).getTime();
+    const endTime = new Date(endedAt).getTime();
+    const duration = (endTime - startTime) / (1000 * 60 * 60);
+
+    if (duration < 0) {
+      yield* Effect.fail(new Error("End time must be after start time"));
+    }
+
+    const entry: Entry = {
+      id,
+      startedAt,
+      endedAt,
+      duration,
+    };
+
+    if (!navigator.onLine) {
+      yield* updateLocalEntry(entry);
+      return entry;
+    }
+
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch(`/api/entries/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt, endedAt }),
+        }),
+      catch: (error) => {
+        Effect.runSync(updateLocalEntry(entry));
+        return new Error(`Failed to update entry: ${error}`);
+      },
+    });
+
+    if (!response.ok) {
+      yield* updateLocalEntry(entry);
+      return entry;
+    }
+
+    const serverEntry = yield* Effect.tryPromise({
+      try: () => response.json() as Promise<Entry>,
+      catch: (error) => {
+        Effect.runSync(updateLocalEntry(entry));
+        return new Error(`Failed to parse entry JSON: ${error}`);
+      },
+    });
+
+    // Update localStorage with server entry
+    yield* updateLocalEntry(serverEntry);
+    return serverEntry;
+  });
 
 export const deleteEntry = (id: string) =>
   Effect.gen(function* () {
