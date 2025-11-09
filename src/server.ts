@@ -95,6 +95,14 @@ const createServer = Effect.gen(function* () {
           return Effect.runPromise(
             Effect.gen(function* () {
               yield* deleteEntry(id);
+
+              // Broadcast to all WebSocket clients
+              const message: WebSocketMessage = {
+                type: "entry:deleted",
+                data: { id },
+              };
+              serverInstance?.publish("timer:updates", JSON.stringify(message));
+
               return Response.json({ success: true });
             })
           ).catch((error) =>

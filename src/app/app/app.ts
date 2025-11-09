@@ -133,6 +133,16 @@ const initializeApp = Effect.gen(function* () {
           (error) => Effect.logError(`Failed to handle timer:stopped: ${error}`)
         )
       );
+    } else if (message.type === "entry:deleted") {
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const entries = yield* getEntries;
+            yield* renderEntries(entries);
+          }),
+          (error) => Effect.logError(`Failed to handle entry:deleted: ${error}`)
+        )
+      );
     }
   };
 
