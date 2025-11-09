@@ -1,6 +1,6 @@
 import { redis } from "bun";
 import { Effect } from "effect";
-import type { Entry, Timer } from "./types.ts";
+import type { Entry, Project, Timer } from "./types.ts";
 
 // Redis connection resource - verifies connection before use
 const connectRedis = Effect.gen(function* () {
@@ -35,22 +35,42 @@ export const getActiveTimer = (): Effect.Effect<Timer | null, Error> =>
     if (!startedAt) {
       return null;
     }
-    return { startedAt: startedAt as string };
+
+    const projectId: string | null = yield* Effect.tryPromise({
+      try: () => redis.hget("active:timer", "projectId"),
+      catch: (error) => new Error(`Failed to get timer projectId: ${error}`),
+    });
+
+    return {
+      startedAt: startedAt as string,
+      ...(projectId ? { projectId } : {}),
+    };
   });
 
 // Start timer
-export const startTimer = (startedAt?: string): Effect.Effect<Timer, Error> =>
+export const startTimer = (
+  startedAt?: string,
+  projectId?: string
+): Effect.Effect<Timer, Error> =>
   Effect.gen(function* () {
     const timerStartedAt = startedAt ?? new Date().toISOString();
 
+    const timerData: Record<string, string> = {
+      startedAt: timerStartedAt,
+      ...(projectId ? { projectId } : {}),
+    };
+
     yield* Effect.tryPromise({
-      try: () => redis.hset("active:timer", "startedAt", timerStartedAt),
+      try: () => redis.hset("active:timer", timerData),
       catch: (error) => new Error(`Failed to start timer: ${error}`),
     });
 
     yield* Effect.log(`⏱️  Timer started at ${timerStartedAt}`);
 
-    return { startedAt: timerStartedAt };
+    return {
+      startedAt: timerStartedAt,
+      ...(projectId ? { projectId } : {}),
+    };
   });
 
 // Stop timer and save entry
@@ -72,17 +92,20 @@ export const stopTimer = (): Effect.Effect<Entry | null, Error> =>
       startedAt: timer.startedAt,
       endedAt,
       duration,
+      ...(timer.projectId ? { projectId: timer.projectId } : {}),
     };
 
     // Save entry to Redis
+    const entryData: Record<string, string> = {
+      id,
+      startedAt: entry.startedAt,
+      endedAt: entry.endedAt,
+      duration: entry.duration.toString(),
+      ...(entry.projectId ? { projectId: entry.projectId } : {}),
+    };
+
     yield* Effect.tryPromise({
-      try: () =>
-        redis.hset(`entry:${id}`, {
-          id,
-          startedAt: entry.startedAt,
-          endedAt: entry.endedAt,
-          duration: entry.duration.toString(),
-        }),
+      try: () => redis.hset(`entry:${id}`, entryData),
       catch: (error) => new Error(`Failed to save entry: ${error}`),
     });
 
@@ -141,12 +164,14 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
           startedAt: string;
           endedAt: string;
           duration: string;
+          projectId?: string;
         };
         entries.push({
           id: entryData.id,
           startedAt: entryData.startedAt,
           endedAt: entryData.endedAt,
           duration: Number.parseFloat(entryData.duration),
+          ...(entryData.projectId ? { projectId: entryData.projectId } : {}),
         });
       }
     }
@@ -166,7 +191,8 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
 export const updateEntry = (
   id: string,
   startedAt: string,
-  endedAt: string
+  endedAt: string,
+  projectId?: string
 ): Effect.Effect<Entry, Error> =>
   Effect.gen(function* () {
     // Check if entry exists
@@ -208,16 +234,28 @@ export const updateEntry = (
       startedAt,
       endedAt,
       duration,
+      ...(projectId ? { projectId } : {}),
     };
 
+    const entryData: Record<string, string> = {
+      id,
+      startedAt: entry.startedAt,
+      endedAt: entry.endedAt,
+      duration: entry.duration.toString(),
+      ...(entry.projectId ? { projectId: entry.projectId } : {}),
+    };
+
+    if (!entry.projectId) {
+      // Remove projectId if it was set before but is now being removed
+      yield* Effect.tryPromise({
+        try: () => redis.hdel(`entry:${id}`, "projectId"),
+        catch: (error) =>
+          new Error(`Failed to remove projectId from entry: ${error}`),
+      });
+    }
+
     yield* Effect.tryPromise({
-      try: () =>
-        redis.hset(`entry:${id}`, {
-          id,
-          startedAt: entry.startedAt,
-          endedAt: entry.endedAt,
-          duration: entry.duration.toString(),
-        }),
+      try: () => redis.hset(`entry:${id}`, entryData),
       catch: (error) => new Error(`Failed to update entry: ${error}`),
     });
 
@@ -245,4 +283,220 @@ export const deleteEntry = (id: string): Effect.Effect<void, Error> =>
     });
 
     yield* Effect.log(`🗑️  Deleted entry ${id}`);
+  });
+
+// Create project
+export const createProject = (name: string): Effect.Effect<Project, Error> =>
+  Effect.gen(function* () {
+    if (!name || name.trim().length === 0) {
+      yield* Effect.fail(new Error("Project name cannot be empty"));
+    }
+
+    if (name.length > 50) {
+      yield* Effect.fail(new Error("Project name cannot exceed 50 characters"));
+    }
+
+    const trimmedName = name.trim();
+
+    // Check for duplicate names
+    const projects = yield* getProjects();
+    const duplicate = projects.find((p) => p.name === trimmedName);
+    if (duplicate) {
+      yield* Effect.fail(new Error("Project name must be unique"));
+    }
+
+    const id = crypto.randomUUID();
+    const project: Project = { id, name: trimmedName };
+
+    yield* Effect.tryPromise({
+      try: () =>
+        redis.hset(`project:${id}`, {
+          id,
+          name: trimmedName,
+        }),
+      catch: (error) => new Error(`Failed to create project: ${error}`),
+    });
+
+    yield* Effect.tryPromise({
+      try: () => redis.sadd("projects:list", id),
+      catch: (error) => new Error(`Failed to add project to list: ${error}`),
+    });
+
+    yield* Effect.log(`✅ Created project: ${trimmedName} (${id})`);
+
+    return project;
+  });
+
+// Get all projects
+export const getProjects = (): Effect.Effect<Project[], Error> =>
+  Effect.gen(function* () {
+    const ids: string[] = yield* Effect.tryPromise({
+      try: () => redis.smembers("projects:list"),
+      catch: (error) => new Error(`Failed to get project IDs: ${error}`),
+    });
+
+    if (!ids || ids.length === 0) {
+      yield* Effect.log("📁 No projects found");
+      return [];
+    }
+
+    // Fetch all projects in parallel
+    const projectPromises = ids.map((id) =>
+      Effect.tryPromise({
+        try: () => redis.hgetall(`project:${id}`),
+        catch: (error) => new Error(`Failed to get project ${id}: ${error}`),
+      })
+    );
+
+    const projectDataArray = yield* Effect.all(projectPromises, {
+      concurrency: "unbounded",
+    });
+
+    const projects: Project[] = [];
+    for (const data of projectDataArray) {
+      if (data) {
+        const projectData = data as {
+          id: string;
+          name: string;
+        };
+        projects.push({
+          id: projectData.id,
+          name: projectData.name,
+        });
+      }
+    }
+
+    // Sort by name
+    const sorted = projects.sort((a, b) => a.name.localeCompare(b.name));
+
+    yield* Effect.log(`📁 Loaded ${sorted.length} projects from Redis`);
+
+    return sorted;
+  });
+
+// Get single project
+export const getProject = (id: string): Effect.Effect<Project | null, Error> =>
+  Effect.gen(function* () {
+    const data = yield* Effect.tryPromise({
+      try: () => redis.hgetall(`project:${id}`),
+      catch: (error) => new Error(`Failed to get project ${id}: ${error}`),
+    });
+
+    if (!data || Object.keys(data).length === 0) {
+      return null;
+    }
+
+    const projectData = data as {
+      id: string;
+      name: string;
+    };
+
+    return {
+      id: projectData.id,
+      name: projectData.name,
+    };
+  });
+
+// Update project
+export const updateProject = (
+  id: string,
+  name: string
+): Effect.Effect<Project, Error> =>
+  Effect.gen(function* () {
+    if (!name || name.trim().length === 0) {
+      yield* Effect.fail(new Error("Project name cannot be empty"));
+    }
+
+    if (name.length > 50) {
+      yield* Effect.fail(new Error("Project name cannot exceed 50 characters"));
+    }
+
+    const trimmedName = name.trim();
+
+    // Check if project exists
+    const existing = yield* getProject(id);
+    if (!existing) {
+      yield* Effect.fail(new Error(`Project with id ${id} not found`));
+    }
+
+    // Check for duplicate names (excluding current project)
+    const projects = yield* getProjects();
+    const duplicate = projects.find(
+      (p) => p.name === trimmedName && p.id !== id
+    );
+    if (duplicate) {
+      yield* Effect.fail(new Error("Project name must be unique"));
+    }
+
+    const project: Project = { id, name: trimmedName };
+
+    yield* Effect.tryPromise({
+      try: () =>
+        redis.hset(`project:${id}`, {
+          id,
+          name: trimmedName,
+        }),
+      catch: (error) => new Error(`Failed to update project: ${error}`),
+    });
+
+    yield* Effect.log(`✏️  Updated project: ${trimmedName} (${id})`);
+
+    return project;
+  });
+
+// Delete project
+export const deleteProject = (
+  id: string,
+  deleteEntries: boolean
+): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    // Check if project exists
+    const existing = yield* getProject(id);
+    if (!existing) {
+      yield* Effect.fail(new Error(`Project with id ${id} not found`));
+    }
+
+    if (deleteEntries) {
+      // Delete all entries with this projectId
+      const entries = yield* getEntries();
+      const projectEntries = entries.filter((e) => e.projectId === id);
+
+      for (const entry of projectEntries) {
+        yield* deleteEntry(entry.id);
+      }
+
+      yield* Effect.log(
+        `🗑️  Deleted ${projectEntries.length} entries for project ${id}`
+      );
+    } else {
+      // Remove projectId from all entries
+      const entries = yield* getEntries();
+      const projectEntries = entries.filter((e) => e.projectId === id);
+
+      for (const entry of projectEntries) {
+        yield* Effect.tryPromise({
+          try: () => redis.hdel(`entry:${entry.id}`, "projectId"),
+          catch: (error) =>
+            new Error(`Failed to remove projectId from entry: ${error}`),
+        });
+      }
+
+      yield* Effect.log(
+        `✏️  Removed project from ${projectEntries.length} entries`
+      );
+    }
+
+    // Delete project
+    yield* Effect.tryPromise({
+      try: () => redis.del(`project:${id}`),
+      catch: (error) => new Error(`Failed to delete project hash: ${error}`),
+    });
+
+    yield* Effect.tryPromise({
+      try: () => redis.srem("projects:list", id),
+      catch: (error) =>
+        new Error(`Failed to remove project from list: ${error}`),
+    });
+
+    yield* Effect.log(`🗑️  Deleted project ${id}`);
   });

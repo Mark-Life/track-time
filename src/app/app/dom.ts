@@ -1,6 +1,18 @@
 import { Effect } from "effect";
-import { editIcon, pauseIcon, playIcon, trashIcon } from "~/assets/icons";
-import type { Entry } from "~/lib/types.ts";
+import {
+  chevronIcon,
+  editIcon,
+  pauseIcon,
+  playIcon,
+  trashIcon,
+} from "~/assets/icons";
+import {
+  type ComboboxOption,
+  createCombobox,
+  setComboboxValue,
+  updateComboboxOptions,
+} from "~/components/ui/combobox.ts";
+import type { Entry, Project } from "~/lib/types.ts";
 import { entriesList, playPauseBtn, timerDisplay } from "./dom-elements.ts";
 
 export const updateTimerDisplay = (text: string) =>
@@ -34,11 +46,23 @@ const isoToDatetimeLocal = (isoString: string): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-const entryHTML = (entry: Entry, isEditing = false): string => {
+const entryHTML = (
+  entry: Entry,
+  projects: Project[] | undefined,
+  isEditing = false
+): string => {
   const startDate = new Date(entry.startedAt);
   const endDate = new Date(entry.endedAt);
+  const projectName =
+    entry.projectId && projects
+      ? projects.find((p) => p.id === entry.projectId)?.name
+      : undefined;
 
   if (isEditing) {
+    const comboboxId = `entry-${entry.id}-project-combobox`;
+    const comboboxInputId = `entry-${entry.id}-project-combobox-input`;
+    const comboboxListId = `entry-${entry.id}-project-combobox-list`;
+
     return `
       <div class="p-4 border border-border rounded-lg" data-entry-id="${entry.id}">
         <form class="edit-entry-form space-y-3" data-entry-id="${entry.id}">
@@ -60,6 +84,49 @@ const entryHTML = (entry: Entry, isEditing = false): string => {
               value="${isoToDatetimeLocal(entry.endedAt)}"
               required
               class="px-3 py-2 border border-border rounded bg-background text-foreground"
+            />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium">Project</label>
+            <div
+              id="${comboboxId}"
+              class="combobox-container relative"
+              role="combobox"
+              aria-expanded="false"
+              aria-haspopup="listbox"
+            >
+              <div
+                class="flex items-center border border-border rounded bg-background cursor-pointer"
+              >
+                <input
+                  id="${comboboxInputId}"
+                  type="text"
+                  placeholder="No project"
+                  autocomplete="off"
+                  class="flex-1 px-3 py-2 bg-transparent text-foreground outline-none"
+                  aria-autocomplete="list"
+                  aria-controls="${comboboxListId}"
+                  role="combobox"
+                />
+                <button
+                  data-combobox-button
+                  type="button"
+                  class="px-2 py-2 text-muted-foreground hover:text-foreground transition"
+                  aria-label="Toggle project list"
+                >
+                  ${chevronIcon(16)}
+                </button>
+              </div>
+              <div
+                id="${comboboxListId}"
+                class="absolute z-50 w-full mt-1 border border-border rounded bg-popover shadow-lg max-h-60 overflow-auto hidden"
+                role="listbox"
+              ></div>
+            </div>
+            <input
+              type="hidden"
+              name="projectId"
+              id="entry-${entry.id}-project-id-hidden"
             />
           </div>
           <div class="flex gap-2 justify-end">
@@ -87,6 +154,7 @@ const entryHTML = (entry: Entry, isEditing = false): string => {
     <div class="group p-4 border border-border rounded-lg relative" data-entry-id="${entry.id}">
       <div class="flex justify-between items-center">
         <div>
+          ${projectName ? `<div class="text-sm font-semibold text-primary mb-1">${projectName}</div>` : ""}
           <div class="text-sm text-gray-500">Started: ${startDate.toLocaleString()}</div>
           <div class="text-sm text-gray-500">Ended: ${endDate.toLocaleString()}</div>
         </div>
@@ -114,7 +182,10 @@ const entryHTML = (entry: Entry, isEditing = false): string => {
   `;
 };
 
-export const renderEntries = (entries: Entry[]) =>
+export const renderEntries = (
+  entries: Entry[],
+  projects: Project[] | undefined = []
+) =>
   Effect.sync(() => {
     if (entries.length === 0) {
       entriesList.innerHTML =
@@ -122,33 +193,73 @@ export const renderEntries = (entries: Entry[]) =>
       return;
     }
 
-    entriesList.innerHTML = entries.map((entry) => entryHTML(entry)).join("");
+    entriesList.innerHTML = entries
+      .map((entry) => entryHTML(entry, projects))
+      .join("");
   });
 
-export const renderEntryEditForm = (entry: Entry) =>
+export const renderEntryEditForm = (
+  entry: Entry,
+  projects: Project[] | undefined = []
+) =>
+  Effect.gen(function* () {
+    const entryElement = entriesList.querySelector(
+      `[data-entry-id="${entry.id}"]`
+    ) as HTMLElement;
+    if (entryElement) {
+      entryElement.outerHTML = entryHTML(entry, projects, true);
+    }
+
+    // Initialize combobox for this entry
+    const comboboxId = `entry-${entry.id}-project-combobox`;
+    const hiddenInputId = `entry-${entry.id}-project-id-hidden`;
+
+    const projectOptions: ComboboxOption[] = [
+      { value: "", label: "No project" },
+      ...(projects || []).map((p) => ({ value: p.id, label: p.name })),
+    ];
+
+    yield* createCombobox({
+      containerId: comboboxId,
+      inputId: `entry-${entry.id}-project-combobox-input`,
+      listId: `entry-${entry.id}-project-combobox-list`,
+      placeholder: "No project",
+      emptyText: "No projects found",
+      onSelect: (value) =>
+        Effect.sync(() => {
+          const hiddenInput = document.getElementById(
+            hiddenInputId
+          ) as HTMLInputElement;
+          if (hiddenInput) {
+            hiddenInput.value = value ?? "";
+          }
+        }),
+    });
+
+    yield* updateComboboxOptions(comboboxId, projectOptions);
+    yield* setComboboxValue(comboboxId, entry.projectId || "");
+  });
+
+export const renderEntryView = (
+  entry: Entry,
+  projects: Project[] | undefined = []
+) =>
   Effect.sync(() => {
     const entryElement = entriesList.querySelector(
       `[data-entry-id="${entry.id}"]`
     ) as HTMLElement;
     if (entryElement) {
-      entryElement.outerHTML = entryHTML(entry, true);
+      entryElement.outerHTML = entryHTML(entry, projects, false);
     }
   });
 
-export const renderEntryView = (entry: Entry) =>
-  Effect.sync(() => {
-    const entryElement = entriesList.querySelector(
-      `[data-entry-id="${entry.id}"]`
-    ) as HTMLElement;
-    if (entryElement) {
-      entryElement.outerHTML = entryHTML(entry, false);
-    }
-  });
-
-export const addEntryToList = (entry: Entry) =>
+export const addEntryToList = (
+  entry: Entry,
+  projects: Project[] | undefined = []
+) =>
   Effect.sync(() => {
     const entryElement = document.createElement("div");
-    entryElement.innerHTML = entryHTML(entry);
+    entryElement.innerHTML = entryHTML(entry, projects);
     entriesList.insertBefore(
       entryElement.firstElementChild as HTMLElement,
       entriesList.firstChild

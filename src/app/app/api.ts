@@ -8,7 +8,7 @@ import {
   saveTimerToLocal,
   updateLocalEntry,
 } from "~/lib/local-storage.ts";
-import type { Entry, Timer } from "~/lib/types.ts";
+import type { Entry, Project, Timer } from "~/lib/types.ts";
 
 export const getTimer = Effect.gen(function* () {
   if (!navigator.onLine) {
@@ -34,10 +34,13 @@ export const getTimer = Effect.gen(function* () {
   return timer;
 });
 
-export const startTimer = (startedAt?: string) =>
+export const startTimer = (startedAt?: string, projectId?: string) =>
   Effect.gen(function* () {
     const timerStartedAt = startedAt ?? new Date().toISOString();
-    const timer: Timer = { startedAt: timerStartedAt };
+    const timer: Timer = {
+      startedAt: timerStartedAt,
+      ...(projectId ? { projectId } : {}),
+    };
 
     if (!navigator.onLine) {
       yield* saveTimerToLocal(timer);
@@ -49,7 +52,10 @@ export const startTimer = (startedAt?: string) =>
         fetch("/api/timer/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startedAt: timerStartedAt }),
+          body: JSON.stringify({
+            startedAt: timerStartedAt,
+            ...(projectId ? { projectId } : {}),
+          }),
         }),
       catch: (error) => {
         Effect.runSync(saveTimerToLocal(timer));
@@ -99,6 +105,7 @@ export const stopTimer = Effect.gen(function* () {
     startedAt: timer.startedAt,
     endedAt,
     duration,
+    ...(timer.projectId ? { projectId: timer.projectId } : {}),
   };
 
   if (!navigator.onLine) {
@@ -167,7 +174,8 @@ export const getEntries = Effect.gen(function* () {
 export const updateEntry = (
   id: string,
   startedAt: string,
-  endedAt: string
+  endedAt: string,
+  projectId?: string
 ): Effect.Effect<Entry, Error> =>
   Effect.gen(function* () {
     const startTime = new Date(startedAt).getTime();
@@ -183,6 +191,7 @@ export const updateEntry = (
       startedAt,
       endedAt,
       duration,
+      ...(projectId ? { projectId } : {}),
     };
 
     if (!navigator.onLine) {
@@ -195,7 +204,11 @@ export const updateEntry = (
         fetch(`/api/entries/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startedAt, endedAt }),
+          body: JSON.stringify({
+            startedAt,
+            endedAt,
+            ...(projectId ? { projectId } : {}),
+          }),
         }),
       catch: (error) => {
         Effect.runSync(updateLocalEntry(entry));
@@ -243,4 +256,114 @@ export const deleteEntry = (id: string) =>
 
     // Also remove from localStorage if it exists there
     yield* clearSyncedEntry(id);
+  });
+
+export const getProjects = Effect.gen(function* () {
+  if (!navigator.onLine) {
+    // Return empty array if offline - projects are server-only for now
+    return [];
+  }
+
+  const response = yield* Effect.tryPromise({
+    try: () => fetch("/api/projects"),
+    catch: (error) => new Error(`Failed to fetch projects: ${error}`),
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const projects = yield* Effect.tryPromise({
+    try: () => response.json() as Promise<Project[]>,
+    catch: (error) => new Error(`Failed to parse projects JSON: ${error}`),
+  });
+
+  return projects;
+});
+
+export const createProject = (name: string) =>
+  Effect.gen(function* () {
+    if (!navigator.onLine) {
+      yield* Effect.fail(new Error("Cannot create project while offline"));
+    }
+
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }),
+      catch: (error) => new Error(`Failed to create project: ${error}`),
+    });
+
+    if (!response.ok) {
+      const errorData = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<{ error: string }>,
+        catch: () => ({ error: "Failed to create project" }),
+      });
+      yield* Effect.fail(new Error(errorData.error));
+    }
+
+    const project = yield* Effect.tryPromise({
+      try: () => response.json() as Promise<Project>,
+      catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
+    });
+
+    return project;
+  });
+
+export const updateProject = (id: string, name: string) =>
+  Effect.gen(function* () {
+    if (!navigator.onLine) {
+      yield* Effect.fail(new Error("Cannot update project while offline"));
+    }
+
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch(`/api/projects/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }),
+      catch: (error) => new Error(`Failed to update project: ${error}`),
+    });
+
+    if (!response.ok) {
+      const errorData = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<{ error: string }>,
+        catch: () => ({ error: "Failed to update project" }),
+      });
+      yield* Effect.fail(new Error(errorData.error));
+    }
+
+    const project = yield* Effect.tryPromise({
+      try: () => response.json() as Promise<Project>,
+      catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
+    });
+
+    return project;
+  });
+
+export const deleteProject = (id: string, deleteEntries: boolean) =>
+  Effect.gen(function* () {
+    if (!navigator.onLine) {
+      yield* Effect.fail(new Error("Cannot delete project while offline"));
+    }
+
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch(`/api/projects/${id}?deleteEntries=${deleteEntries}`, {
+          method: "DELETE",
+        }),
+      catch: (error) => new Error(`Failed to delete project: ${error}`),
+    });
+
+    if (!response.ok) {
+      const errorData = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<{ error: string }>,
+        catch: () => ({ error: "Failed to delete project" }),
+      });
+      yield* Effect.fail(new Error(errorData.error));
+    }
   });

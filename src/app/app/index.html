@@ -7,9 +7,23 @@
   </head>
   <body class="min-h-screen bg-background text-foreground p-4">
     <div class="max-w-4xl mx-auto">
-      <h1 class="text-2xl font-bold mb-4 text-primary text-center">
-        Time Tracker
-      </h1>
+      <div class="flex justify-between items-center mb-4">
+        <h1 class="text-2xl font-bold text-primary">Time Tracker</h1>
+        <nav class="flex gap-4">
+          <a
+            href="/app"
+            class="nav-link text-sm hover:text-primary transition"
+            data-route="/app"
+            >Timer</a
+          >
+          <a
+            href="/projects"
+            class="nav-link text-sm hover:text-primary transition"
+            data-route="/projects"
+            >Projects</a
+          >
+        </nav>
+      </div>
 
       <!-- Timer Section -->
       <div
@@ -39,12 +53,135 @@
             />
           </svg>
         </button>
+        <div class="mt-4 flex items-center gap-2 w-full max-w-xs">
+          <div
+            id="project-combobox"
+            class="combobox-container flex-1 relative"
+            role="combobox"
+            aria-expanded="false"
+            aria-haspopup="listbox"
+          >
+            <div
+              class="flex items-center border border-border rounded bg-background cursor-pointer"
+            >
+              <input
+                id="project-combobox-input"
+                type="text"
+                placeholder="No project"
+                autocomplete="off"
+                class="flex-1 px-3 py-2 bg-transparent text-foreground outline-none"
+                aria-autocomplete="list"
+                aria-controls="project-combobox-list"
+                role="combobox"
+              />
+              <button
+                data-combobox-button
+                type="button"
+                class="px-2 py-2 text-muted-foreground hover:text-foreground transition"
+                aria-label="Toggle project list"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="combobox-chevron transition-transform"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+            <div
+              id="project-combobox-list"
+              class="absolute z-50 w-full mt-1 border border-border rounded bg-popover shadow-lg max-h-60 overflow-auto hidden"
+              role="listbox"
+            ></div>
+          </div>
+          <button
+            id="add-project-btn"
+            class="bg-primary text-primary-foreground p-2 rounded hover:bg-primary/80 transition cursor-pointer flex items-center justify-center"
+            aria-label="Add project"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
+          </button>
+        </div>
+        <div id="project-input-container" class="mt-2 w-full max-w-xs hidden">
+          <input
+            type="text"
+            id="project-name-input"
+            placeholder="Project name"
+            maxlength="50"
+            class="w-full px-3 py-2 border border-border rounded bg-background text-foreground"
+          />
+        </div>
       </div>
 
       <!-- Entries Section -->
-      <div class="">
-        <h2 class="text-xl font-bold mb-4">Entries</h2>
-        <div id="entries-list" class="space-y-2"></div>
+      <div id="timer-page" class="route-page">
+        <div class="">
+          <h2 class="text-xl font-bold mb-4">Entries</h2>
+          <div id="entries-list" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Projects Page -->
+      <div id="projects-page" class="route-page hidden">
+        <h2 class="text-xl font-bold mb-4">Projects</h2>
+        <div id="projects-container" class="space-y-2"></div>
+      </div>
+
+      <!-- Delete Project Modal -->
+      <div
+        id="delete-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      >
+        <div class="bg-background p-6 rounded-lg max-w-md w-full mx-4">
+          <h3 class="text-lg font-bold mb-4">Delete Project</h3>
+          <p class="mb-4">
+            What would you like to do with time entries for project "<span
+              id="delete-modal-project-name"
+            ></span
+            >"?
+          </p>
+          <div class="flex flex-col gap-2">
+            <button
+              id="delete-entries-btn"
+              class="px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/80 cursor-pointer"
+            >
+              Delete all related entries
+            </button>
+            <button
+              id="keep-entries-btn"
+              class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
+            >
+              Keep entries, remove project
+            </button>
+            <button
+              id="cancel-delete-btn"
+              class="px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

@@ -1,10 +1,18 @@
 import "~/global.css";
 import { Effect, Ref } from "effect";
-import { getTimerFromLocal } from "~/lib/local-storage.ts";
-import type { Timer, WebSocketMessage } from "~/lib/types.ts";
 import {
+  type ComboboxOption,
+  createCombobox,
+  setComboboxValue,
+  updateComboboxOptions,
+} from "~/components/ui/combobox.ts";
+import { getTimerFromLocal } from "~/lib/local-storage.ts";
+import type { Project, Timer, WebSocketMessage } from "~/lib/types.ts";
+import {
+  createProject,
   deleteEntry,
   getEntries,
+  getProjects,
   getTimer,
   startTimer,
   stopTimer,
@@ -18,11 +26,18 @@ import {
   showFormError,
   showPlayButton,
 } from "./dom.ts";
-import { entriesList, playPauseBtn } from "./dom-elements.ts";
+import {
+  addProjectBtn,
+  entriesList,
+  playPauseBtn,
+  projectInputContainer,
+  projectNameInput,
+} from "./dom-elements.ts";
 import {
   hideOfflineIndicator,
   showOfflineIndicator,
 } from "./offline-indicator.ts";
+import { initializeProjectsPage } from "./projects.ts";
 import { syncWithServer } from "./sync.ts";
 import { startTimerUI, stopTimerUI } from "./timer-ui.ts";
 
@@ -30,6 +45,72 @@ import { startTimerUI, stopTimerUI } from "./timer-ui.ts";
 if (import.meta.hot) {
   import.meta.hot.accept();
 }
+
+// Client-side routing
+const timerPage = document.getElementById("timer-page") as HTMLDivElement;
+const projectsPage = document.getElementById("projects-page") as HTMLDivElement;
+const navLinks = Array.from(
+  document.querySelectorAll(".nav-link")
+) as HTMLAnchorElement[];
+
+const showPage = (route: string) => {
+  if (route === "/projects") {
+    timerPage.classList.add("hidden");
+    projectsPage.classList.remove("hidden");
+    // Update URL without reload
+    window.history.pushState({ route }, "", "/projects");
+  } else {
+    timerPage.classList.remove("hidden");
+    projectsPage.classList.add("hidden");
+    // Update URL without reload
+    window.history.pushState({ route }, "", "/app");
+  }
+
+  // Update active nav link
+  for (const link of navLinks) {
+    const linkRoute = link.getAttribute("data-route");
+    if (linkRoute === route) {
+      link.classList.add("font-bold", "text-primary");
+    } else {
+      link.classList.remove("font-bold", "text-primary");
+    }
+  }
+};
+
+// Handle initial route
+const currentRoute = window.location.pathname;
+showPage(currentRoute);
+
+// Handle navigation clicks
+for (const link of navLinks) {
+  link.addEventListener("click", (e: MouseEvent) => {
+    e.preventDefault();
+    const route = link.getAttribute("data-route");
+    if (route) {
+      showPage(route);
+      if (route === "/projects") {
+        Effect.runPromise(
+          Effect.catchAll(initializeProjectsPage, (error) =>
+            Effect.logError(`Failed to initialize projects page: ${error}`)
+          )
+        );
+      }
+    }
+  });
+}
+
+// Handle browser back/forward
+window.addEventListener("popstate", () => {
+  const route = window.location.pathname;
+  showPage(route);
+  if (route === "/projects") {
+    Effect.runPromise(
+      Effect.catchAll(initializeProjectsPage, (error) =>
+        Effect.logError(`Failed to initialize projects page: ${error}`)
+      )
+    );
+  }
+});
 
 // Store references for cleanup
 let wsInstance: WebSocket | null = null;
@@ -62,25 +143,66 @@ window.addEventListener("unload", () => {
   Effect.runPromise(cleanup);
 });
 
+// Project management functions
+const populateProjectCombobox = (projects: Project[], selectedId?: string) =>
+  Effect.gen(function* () {
+    const options: ComboboxOption<string>[] = projects.map((project) => ({
+      value: project.id,
+      label: project.name,
+    }));
+    yield* updateComboboxOptions("project-combobox", options);
+    yield* setComboboxValue("project-combobox", selectedId);
+  });
+
+const loadProjects = Effect.gen(function* () {
+  const projects = yield* getProjects;
+  yield* populateProjectCombobox(projects);
+  return projects;
+});
+
 // Main app initialization
 const initializeApp = Effect.gen(function* () {
   const timerRef = yield* Ref.make<Timer | null>(null);
   const intervalRef = yield* Ref.make<number | null>(null);
+  const projectsRef = yield* Ref.make<Project[]>([]);
+  const selectedProjectIdRef = yield* Ref.make<string | undefined>(undefined);
+  const pendingProjectIdRef = yield* Ref.make<string | null>(null);
 
   // Store reference for cleanup
   intervalRefInstance = intervalRef;
 
+  // Initialize combobox
+  yield* createCombobox({
+    containerId: "project-combobox",
+    inputId: "project-combobox-input",
+    listId: "project-combobox-list",
+    placeholder: "No project",
+    emptyText: "No projects found",
+    onSelect: (value) =>
+      Effect.gen(function* () {
+        yield* Ref.set(selectedProjectIdRef, value);
+      }),
+  });
+
   // Load initial data
   const loadInitialData = Effect.gen(function* () {
+    // Load projects
+    const projects = yield* loadProjects;
+    yield* Ref.set(projectsRef, projects);
+
     // Check localStorage first for offline timer
     const localTimer = yield* getTimerFromLocal();
     if (localTimer && !navigator.onLine) {
       yield* Ref.set(timerRef, localTimer);
+      yield* Ref.set(selectedProjectIdRef, localTimer.projectId);
+      yield* populateProjectCombobox(projects, localTimer.projectId);
       yield* startTimerUI(timerRef, intervalRef);
     } else {
       const timer = yield* getTimer;
       if (timer) {
         yield* Ref.set(timerRef, timer);
+        yield* Ref.set(selectedProjectIdRef, timer.projectId);
+        yield* populateProjectCombobox(projects, timer.projectId);
         yield* startTimerUI(timerRef, intervalRef);
       } else {
         // No timer active, show play button
@@ -89,7 +211,8 @@ const initializeApp = Effect.gen(function* () {
     }
 
     const entries = yield* getEntries;
-    yield* renderEntries(entries);
+    const currentProjects = yield* Ref.get(projectsRef);
+    yield* renderEntries(entries, currentProjects);
   });
 
   // Set up online/offline listeners
@@ -141,7 +264,7 @@ const initializeApp = Effect.gen(function* () {
       )
     );
   };
-
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: TODO fix me later
   ws.onmessage = (event) => {
     let message: WebSocketMessage;
     try {
@@ -155,13 +278,83 @@ const initializeApp = Effect.gen(function* () {
 
     if (message.type === "timer:started") {
       const startedAt = message.data.startedAt;
+      const projectId = message.data.projectId;
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
-            yield* Ref.set(timerRef, { startedAt });
+            yield* Ref.set(timerRef, {
+              startedAt,
+              ...(projectId ? { projectId } : {}),
+            });
+            yield* Ref.set(selectedProjectIdRef, projectId);
+            const currentProjects = yield* Ref.get(projectsRef);
+            yield* populateProjectCombobox(currentProjects, projectId);
             yield* startTimerUI(timerRef, intervalRef);
           }),
           (error) => Effect.logError(`Failed to handle timer:started: ${error}`)
+        )
+      );
+    } else if (message.type === "project:created") {
+      const project = message.data.project;
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const currentProjects = yield* Ref.get(projectsRef);
+            const updatedProjects = [...currentProjects, project].sort((a, b) =>
+              a.name.localeCompare(b.name)
+            );
+            yield* Ref.set(projectsRef, updatedProjects);
+            const pendingId = yield* Ref.get(pendingProjectIdRef);
+            // If this is the project we just created, select it
+            if (pendingId === project.id) {
+              yield* Ref.set(pendingProjectIdRef, null);
+              yield* Ref.set(selectedProjectIdRef, project.id);
+              yield* populateProjectCombobox(updatedProjects, project.id);
+            } else {
+              const selectedId = yield* Ref.get(selectedProjectIdRef);
+              yield* populateProjectCombobox(updatedProjects, selectedId);
+            }
+          }),
+          (error) =>
+            Effect.logError(`Failed to handle project:created: ${error}`)
+        )
+      );
+    } else if (message.type === "project:updated") {
+      const project = message.data.project;
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const currentProjects = yield* Ref.get(projectsRef);
+            const updatedProjects = currentProjects
+              .map((p) => (p.id === project.id ? project : p))
+              .sort((a, b) => a.name.localeCompare(b.name));
+            yield* Ref.set(projectsRef, updatedProjects);
+            const selectedId = yield* Ref.get(selectedProjectIdRef);
+            yield* populateProjectCombobox(updatedProjects, selectedId);
+          }),
+          (error) =>
+            Effect.logError(`Failed to handle project:updated: ${error}`)
+        )
+      );
+    } else if (message.type === "project:deleted") {
+      const id = message.data.id;
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const currentProjects = yield* Ref.get(projectsRef);
+            const updatedProjects = currentProjects.filter((p) => p.id !== id);
+            yield* Ref.set(projectsRef, updatedProjects);
+            const selectedId = yield* Ref.get(selectedProjectIdRef);
+            if (selectedId === id) {
+              yield* Ref.set(selectedProjectIdRef, undefined);
+            }
+            yield* populateProjectCombobox(updatedProjects, selectedId);
+            // Reload entries to reflect project deletion
+            const entries = yield* getEntries;
+            yield* renderEntries(entries, updatedProjects);
+          }),
+          (error) =>
+            Effect.logError(`Failed to handle project:deleted: ${error}`)
         )
       );
     } else if (message.type === "timer:stopped") {
@@ -171,7 +364,8 @@ const initializeApp = Effect.gen(function* () {
           Effect.gen(function* () {
             yield* stopTimerUI(intervalRef);
             yield* Ref.set(timerRef, null);
-            yield* addEntryToList(entry);
+            const projects = yield* Ref.get(projectsRef);
+            yield* addEntryToList(entry, projects);
           }),
           (error) => Effect.logError(`Failed to handle timer:stopped: ${error}`)
         )
@@ -181,7 +375,8 @@ const initializeApp = Effect.gen(function* () {
         Effect.catchAll(
           Effect.gen(function* () {
             const entries = yield* getEntries;
-            yield* renderEntries(entries);
+            const projects = yield* Ref.get(projectsRef);
+            yield* renderEntries(entries, projects);
           }),
           (error) => Effect.logError(`Failed to handle entry:deleted: ${error}`)
         )
@@ -191,7 +386,8 @@ const initializeApp = Effect.gen(function* () {
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
-            yield* renderEntryView(entry);
+            const projects = yield* Ref.get(projectsRef);
+            yield* renderEntryView(entry, projects);
           }),
           (error) => Effect.logError(`Failed to handle entry:updated: ${error}`)
         )
@@ -221,11 +417,13 @@ const initializeApp = Effect.gen(function* () {
             // Reload and render entries to show the new entry (works for both online and offline)
             if (entry) {
               const entries = yield* getEntries;
-              yield* renderEntries(entries);
+              const projects = yield* Ref.get(projectsRef);
+              yield* renderEntries(entries, projects);
             }
           } else {
             // Timer is stopped, start it
-            const newTimer = yield* startTimer();
+            const selectedProjectId = yield* Ref.get(selectedProjectIdRef);
+            const newTimer = yield* startTimer(undefined, selectedProjectId);
             yield* Ref.set(timerRef, newTimer);
             yield* startTimerUI(timerRef, intervalRef);
           }
@@ -253,8 +451,9 @@ const initializeApp = Effect.gen(function* () {
           Effect.gen(function* () {
             const entries = yield* getEntries;
             const entry = entries.find((e) => e.id === entryId);
+            const projects = yield* Ref.get(projectsRef);
             if (entry) {
-              yield* renderEntryEditForm(entry);
+              yield* renderEntryEditForm(entry, projects);
             }
           }),
           (error) => Effect.logError(`Failed to show edit form: ${error}`)
@@ -276,8 +475,9 @@ const initializeApp = Effect.gen(function* () {
           Effect.gen(function* () {
             const entries = yield* getEntries;
             const entry = entries.find((e) => e.id === entryId);
+            const currentProjects = yield* Ref.get(projectsRef);
             if (entry) {
-              yield* renderEntryView(entry);
+              yield* renderEntryView(entry, currentProjects);
             }
           }),
           (error) => Effect.logError(`Failed to cancel edit: ${error}`)
@@ -299,7 +499,8 @@ const initializeApp = Effect.gen(function* () {
           Effect.gen(function* () {
             yield* deleteEntry(entryId);
             const entries = yield* getEntries;
-            yield* renderEntries(entries);
+            const currentProjects = yield* Ref.get(projectsRef);
+            yield* renderEntries(entries, currentProjects);
           }),
           (error) => Effect.logError(`Failed to delete entry: ${error}`)
         )
@@ -307,6 +508,56 @@ const initializeApp = Effect.gen(function* () {
       return;
     }
   });
+
+  // Form validation helper
+  const validateEntryForm = (
+    form: HTMLFormElement
+  ):
+    | { valid: false; error: string }
+    | {
+        valid: true;
+        startedAt: string;
+        endedAt: string;
+        projectId: string | undefined;
+      } => {
+    const formData = new FormData(form);
+    const startedAtInput = formData.get("startedAt") as string;
+    const endedAtInput = formData.get("endedAt") as string;
+    const projectIdInput = formData.get("projectId") as string;
+    const projectId =
+      projectIdInput && projectIdInput.trim() !== ""
+        ? projectIdInput
+        : undefined;
+
+    if (!startedAtInput) {
+      return { valid: false, error: "Start time is required" };
+    }
+    if (!endedAtInput) {
+      return { valid: false, error: "End time is required" };
+    }
+
+    const startedAtDate = new Date(startedAtInput);
+    const endedAtDate = new Date(endedAtInput);
+
+    if (Number.isNaN(startedAtDate.getTime())) {
+      return { valid: false, error: "Invalid start time format" };
+    }
+
+    if (Number.isNaN(endedAtDate.getTime())) {
+      return { valid: false, error: "Invalid end time format" };
+    }
+
+    if (endedAtDate.getTime() <= startedAtDate.getTime()) {
+      return { valid: false, error: "End time must be after start time" };
+    }
+
+    return {
+      valid: true,
+      startedAt: startedAtDate.toISOString(),
+      endedAt: endedAtDate.toISOString(),
+      projectId,
+    };
+  };
 
   // Form submission handler (event delegation)
   entriesList.addEventListener("submit", (event) => {
@@ -321,50 +572,23 @@ const initializeApp = Effect.gen(function* () {
       return;
     }
 
-    const formData = new FormData(form);
-    const startedAtInput = formData.get("startedAt") as string;
-    const endedAtInput = formData.get("endedAt") as string;
-
-    if (!startedAtInput) {
-      Effect.runPromise(showFormError(form, "Start time is required"));
+    const validation = validateEntryForm(form);
+    if (!validation.valid) {
+      Effect.runPromise(showFormError(form, validation.error));
       return;
     }
-    if (!endedAtInput) {
-      Effect.runPromise(showFormError(form, "End time is required"));
-      return;
-    }
-
-    // Validate date formats
-    const startedAtDate = new Date(startedAtInput);
-    const endedAtDate = new Date(endedAtInput);
-
-    if (Number.isNaN(startedAtDate.getTime())) {
-      Effect.runPromise(showFormError(form, "Invalid start time format"));
-      return;
-    }
-
-    if (Number.isNaN(endedAtDate.getTime())) {
-      Effect.runPromise(showFormError(form, "Invalid end time format"));
-      return;
-    }
-
-    // Validate end time is after start time
-    if (endedAtDate.getTime() <= startedAtDate.getTime()) {
-      Effect.runPromise(
-        showFormError(form, "End time must be after start time")
-      );
-      return;
-    }
-
-    // Convert datetime-local to ISO string
-    const startedAt = startedAtDate.toISOString();
-    const endedAt = endedAtDate.toISOString();
 
     Effect.runPromise(
       Effect.catchAll(
         Effect.gen(function* () {
-          const updatedEntry = yield* updateEntry(entryId, startedAt, endedAt);
-          yield* renderEntryView(updatedEntry);
+          const updatedEntry = yield* updateEntry(
+            entryId,
+            validation.startedAt,
+            validation.endedAt,
+            validation.projectId
+          );
+          const currentProjects = yield* Ref.get(projectsRef);
+          yield* renderEntryView(updatedEntry, currentProjects);
         }),
         (error) =>
           Effect.gen(function* () {
@@ -372,18 +596,80 @@ const initializeApp = Effect.gen(function* () {
             const errorMessage =
               error instanceof Error ? error.message : "Failed to update entry";
             yield* showFormError(form, errorMessage);
-            // On error, reload entries to show current state
             const entries = yield* getEntries;
-            yield* renderEntries(entries);
+            const currentProjects = yield* Ref.get(projectsRef);
+            yield* renderEntries(entries, currentProjects);
           })
+      )
+    );
+  });
+
+  // Add project button handler
+  addProjectBtn.addEventListener("click", () => {
+    projectInputContainer.classList.remove("hidden");
+    projectNameInput.focus();
+  });
+
+  // Project input handlers
+  const handleProjectCreate = () =>
+    Effect.gen(function* () {
+      const name = projectNameInput.value.trim();
+      if (!name) {
+        projectInputContainer.classList.add("hidden");
+        projectNameInput.value = "";
+        return;
+      }
+
+      try {
+        const project = yield* createProject(name);
+        // Store the project ID so WebSocket handler can select it
+        yield* Ref.set(pendingProjectIdRef, project.id);
+        projectInputContainer.classList.add("hidden");
+        projectNameInput.value = "";
+        // Project will be added via WebSocket message
+      } catch (error) {
+        yield* Ref.set(pendingProjectIdRef, null);
+        yield* Effect.logError(`Failed to create project: ${error}`);
+        console.error(
+          error instanceof Error ? error.message : "Failed to create project"
+        );
+      }
+    });
+
+  projectNameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      Effect.runPromise(
+        Effect.catchAll(handleProjectCreate(), (error) =>
+          Effect.logError(`Failed to create project: ${error}`)
+        )
+      );
+    } else if (e.key === "Escape") {
+      projectInputContainer.classList.add("hidden");
+      projectNameInput.value = "";
+    }
+  });
+
+  projectNameInput.addEventListener("blur", () => {
+    Effect.runPromise(
+      Effect.catchAll(handleProjectCreate(), (error) =>
+        Effect.logError(`Failed to create project: ${error}`)
       )
     );
   });
 });
 
-// Run the app
-Effect.runPromise(
-  Effect.catchAll(initializeApp, (error) =>
-    Effect.logError(`Failed to initialize app: ${error}`)
-  )
-);
+// Run the app based on current route
+const currentRouteOnLoad = window.location.pathname;
+if (currentRouteOnLoad === "/projects") {
+  Effect.runPromise(
+    Effect.catchAll(initializeProjectsPage, (error) =>
+      Effect.logError(`Failed to initialize projects page: ${error}`)
+    )
+  );
+} else {
+  Effect.runPromise(
+    Effect.catchAll(initializeApp, (error) =>
+      Effect.logError(`Failed to initialize app: ${error}`)
+    )
+  );
+}

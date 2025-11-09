@@ -122,3 +122,13 @@ html {
     --sidebar-ring: oklch(62.32% 0.1879 259.8);
   }
 }
+
+@layer components {
+  .combobox-container.combobox-open #project-combobox-list {
+    display: block;
+  }
+
+  .combobox-container.combobox-open .combobox-chevron {
+    transform: rotate(180deg);
+  }
+}
