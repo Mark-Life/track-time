@@ -1,5 +1,12 @@
 import "~/global.css";
 import { Effect, Ref } from "effect";
+import {
+  clearLocalTimer,
+  getLocalEntries,
+  getTimerFromLocal,
+  saveEntryToLocal,
+  saveTimerToLocal,
+} from "~/lib/local-storage.ts";
 import type { Entry, Timer, WebSocketMessage } from "~/lib/types.ts";
 
 // Accept HMR updates
@@ -13,17 +20,24 @@ const startBtn = document.getElementById("start-btn") as HTMLButtonElement;
 const stopBtn = document.getElementById("stop-btn") as HTMLButtonElement;
 const entriesList = document.getElementById("entries-list") as HTMLDivElement;
 
-// API functions
+// Offline status indicator
+let offlineIndicator: HTMLDivElement | null = null;
+
+// API functions with offline support
 const getTimer = Effect.gen(function* () {
+  if (!navigator.onLine) {
+    const localTimer = yield* getTimerFromLocal();
+    return localTimer;
+  }
+
   const response = yield* Effect.tryPromise({
     try: () => fetch("/api/timer"),
     catch: (error) => new Error(`Failed to fetch timer: ${error}`),
   });
 
   if (!response.ok) {
-    yield* Effect.fail(
-      new Error(`Failed to get timer: HTTP ${response.status}`)
-    );
+    const localTimer = yield* getTimerFromLocal();
+    return localTimer;
   }
 
   const timer = yield* Effect.tryPromise({
@@ -35,58 +49,126 @@ const getTimer = Effect.gen(function* () {
 });
 
 const startTimer = Effect.gen(function* () {
+  const timer: Timer = { startedAt: new Date().toISOString() };
+
+  if (!navigator.onLine) {
+    yield* saveTimerToLocal(timer);
+    return timer;
+  }
+
   const response = yield* Effect.tryPromise({
     try: () => fetch("/api/timer/start", { method: "POST" }),
-    catch: (error) => new Error(`Failed to start timer: ${error}`),
+    catch: (error) => {
+      Effect.runSync(saveTimerToLocal(timer));
+      return new Error(`Failed to start timer: ${error}`);
+    },
   });
 
   if (!response.ok) {
-    yield* Effect.fail(
-      new Error(`Failed to start timer: HTTP ${response.status}`)
-    );
+    yield* saveTimerToLocal(timer);
+    return timer;
   }
 
-  const timer = yield* Effect.tryPromise({
+  const serverTimer = yield* Effect.tryPromise({
     try: () => response.json() as Promise<Timer>,
-    catch: (error) => new Error(`Failed to parse timer JSON: ${error}`),
+    catch: (error) => {
+      Effect.runSync(saveTimerToLocal(timer));
+      return new Error(`Failed to parse timer JSON: ${error}`);
+    },
   });
 
-  return timer;
+  return serverTimer;
 });
 
 const stopTimer = Effect.gen(function* () {
+  // Get timer from local storage or server
+  // Prioritize local timer if it exists (preserves original start time)
+  const localTimer = yield* getTimerFromLocal();
+  let timer: Timer | null = localTimer;
+
+  if (!timer && navigator.onLine) {
+    const serverTimer = yield* getTimer;
+    timer = serverTimer;
+  }
+
+  if (!timer) {
+    yield* Effect.fail(new Error("No active timer"));
+    return;
+  }
+
+  const endedAt = new Date().toISOString();
+  const startTime = new Date(timer.startedAt).getTime();
+  const endTime = new Date(endedAt).getTime();
+  const duration = (endTime - startTime) / (1000 * 60 * 60);
+
+  const entry: Entry = {
+    id: crypto.randomUUID(),
+    startedAt: timer.startedAt,
+    endedAt,
+    duration,
+  };
+
+  if (!navigator.onLine) {
+    yield* saveEntryToLocal(entry);
+    yield* clearLocalTimer();
+    return entry;
+  }
+
   const response = yield* Effect.tryPromise({
     try: () => fetch("/api/timer/stop", { method: "POST" }),
-    catch: (error) => new Error(`Failed to stop timer: ${error}`),
+    catch: (error) => {
+      Effect.runSync(saveEntryToLocal(entry));
+      Effect.runSync(clearLocalTimer());
+      return new Error(`Failed to stop timer: ${error}`);
+    },
   });
 
   if (!response.ok) {
-    yield* Effect.fail(
-      new Error(`Failed to stop timer: HTTP ${response.status}`)
-    );
+    yield* saveEntryToLocal(entry);
+    yield* clearLocalTimer();
+    return entry;
   }
 
-  return response.ok;
+  const serverEntry = yield* Effect.tryPromise({
+    try: () => response.json() as Promise<Entry>,
+    catch: (error) => {
+      Effect.runSync(saveEntryToLocal(entry));
+      Effect.runSync(clearLocalTimer());
+      return new Error(`Failed to parse entry JSON: ${error}`);
+    },
+  });
+
+  yield* clearLocalTimer();
+  return serverEntry;
 });
 
 const getEntries = Effect.gen(function* () {
+  const localEntries = yield* getLocalEntries();
+
+  if (!navigator.onLine) {
+    return localEntries;
+  }
+
   const response = yield* Effect.tryPromise({
     try: () => fetch("/api/entries"),
     catch: (error) => new Error(`Failed to fetch entries: ${error}`),
   });
 
   if (!response.ok) {
-    yield* Effect.fail(
-      new Error(`Failed to get entries: HTTP ${response.status}`)
-    );
+    return localEntries;
   }
 
-  const entries = yield* Effect.tryPromise({
+  const serverEntries = yield* Effect.tryPromise({
     try: () => response.json() as Promise<Entry[]>,
     catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
   });
 
-  return entries;
+  // Merge local and server entries, removing duplicates by ID
+  const serverIds = new Set(serverEntries.map((e) => e.id));
+  const uniqueLocalEntries = localEntries.filter((e) => !serverIds.has(e.id));
+  return [...serverEntries, ...uniqueLocalEntries].sort(
+    (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+  );
 });
 
 // DOM operations
@@ -176,6 +258,9 @@ const startTimerUI = (
       }
     });
 
+    // Update display immediately
+    yield* updateDisplay;
+
     // Clear existing interval if any
     const existingInterval = yield* Ref.get(intervalRef);
     if (existingInterval !== null) {
@@ -207,6 +292,74 @@ const stopTimerUI = (intervalRef: Ref.Ref<number | null>) =>
     }
   });
 
+// Offline indicator UI
+const showOfflineIndicator = Effect.sync(() => {
+  if (offlineIndicator) {
+    return;
+  }
+
+  offlineIndicator = document.createElement("div");
+  offlineIndicator.className =
+    "fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded shadow-lg text-sm";
+  offlineIndicator.textContent = "Offline";
+  document.body.appendChild(offlineIndicator);
+});
+
+const hideOfflineIndicator = Effect.sync(() => {
+  if (offlineIndicator) {
+    offlineIndicator.remove();
+    offlineIndicator = null;
+  }
+});
+
+// Sync functionality
+const syncWithServer = (
+  timerRef: Ref.Ref<Timer | null>,
+  intervalRef: Ref.Ref<number | null>
+) =>
+  Effect.gen(function* () {
+    if (!navigator.onLine) {
+      return;
+    }
+
+    const localTimer = yield* getTimerFromLocal();
+
+    // Sync timer if exists locally
+    if (localTimer) {
+      // Check if server has a timer
+      const serverTimer = yield* getTimer;
+      if (serverTimer) {
+        // If server timer exists and is different, stop it first
+        if (serverTimer.startedAt !== localTimer.startedAt) {
+          yield* Effect.tryPromise({
+            try: () => fetch("/api/timer/stop", { method: "POST" }),
+            catch: () => Effect.void,
+          });
+        } else {
+          // Same timer, already synced
+          yield* clearLocalTimer();
+          return;
+        }
+      }
+
+      // Start timer on server (server creates new timer with current time)
+      // We keep using local timer in UI to preserve original start time
+      yield* Effect.tryPromise({
+        try: () => fetch("/api/timer/start", { method: "POST" }),
+        catch: () => Effect.void,
+      });
+
+      // Keep local timer in ref to preserve start time
+      yield* Ref.set(timerRef, localTimer);
+      yield* startTimerUI(timerRef, intervalRef);
+      // Don't clear local timer yet - it will be cleared when stopped online
+    }
+
+    // Reload entries after sync
+    const entries = yield* getEntries;
+    yield* renderEntries(entries);
+  });
+
 // Main app initialization
 const initializeApp = Effect.gen(function* () {
   const timerRef = yield* Ref.make<Timer | null>(null);
@@ -214,6 +367,13 @@ const initializeApp = Effect.gen(function* () {
 
   // Load initial data
   const loadInitialData = Effect.gen(function* () {
+    // Check localStorage first for offline timer
+    const localTimer = yield* getTimerFromLocal();
+    if (localTimer && !navigator.onLine) {
+      yield* Ref.set(timerRef, localTimer);
+      yield* startTimerUI(timerRef, intervalRef);
+    }
+
     const timer = yield* getTimer;
     if (timer) {
       yield* Ref.set(timerRef, timer);
@@ -222,6 +382,42 @@ const initializeApp = Effect.gen(function* () {
 
     const entries = yield* getEntries;
     yield* renderEntries(entries);
+  });
+
+  // Set up online/offline listeners
+  const updateOnlineStatus = () =>
+    Effect.gen(function* () {
+      if (navigator.onLine) {
+        yield* hideOfflineIndicator;
+        // Attempt sync when coming back online
+        yield* syncWithServer(timerRef, intervalRef);
+      } else {
+        yield* showOfflineIndicator;
+      }
+    });
+
+  // Initial online status
+  Effect.runPromise(
+    Effect.catchAll(updateOnlineStatus(), (error) =>
+      Effect.logError(`Failed to update online status: ${error}`)
+    )
+  );
+
+  // Listen for online/offline events
+  window.addEventListener("online", () => {
+    Effect.runPromise(
+      Effect.catchAll(updateOnlineStatus(), (error) =>
+        Effect.logError(`Failed to handle online event: ${error}`)
+      )
+    );
+  });
+
+  window.addEventListener("offline", () => {
+    Effect.runPromise(
+      Effect.catchAll(updateOnlineStatus(), (error) =>
+        Effect.logError(`Failed to handle offline event: ${error}`)
+      )
+    );
   });
 
   // WebSocket connection

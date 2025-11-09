@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import app from "~/app/app/index.html";
 import landing from "~/app/index.html";
 import {
@@ -19,14 +20,14 @@ const server = Bun.serve({
     // API routes
     "/api/timer": {
       async GET() {
-        const timer = await getActiveTimer();
+        const timer = await Effect.runPromise(getActiveTimer());
         return Response.json(timer);
       },
     },
 
     "/api/timer/start": {
       async POST() {
-        const timer = await startTimer();
+        const timer = await Effect.runPromise(startTimer());
 
         // Broadcast to all WebSocket clients
         const message: WebSocketMessage = {
@@ -41,7 +42,7 @@ const server = Bun.serve({
 
     "/api/timer/stop": {
       async POST() {
-        const entry = await stopTimer();
+        const entry = await Effect.runPromise(stopTimer());
         if (!entry) {
           return Response.json({ error: "No active timer" }, { status: 400 });
         }
@@ -59,7 +60,7 @@ const server = Bun.serve({
 
     "/api/entries": {
       async GET() {
-        const entries = await getEntries();
+        const entries = await Effect.runPromise(getEntries());
         return Response.json(entries);
       },
     },
