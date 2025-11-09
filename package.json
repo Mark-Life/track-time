@@ -14,8 +14,8 @@
   },
   "scripts": {
     "dev": "bun src/index.ts",
-    "build": "bun run build.ts",
-    "start": "NODE_ENV=production bun src/index.ts",
+    "build": "bun build.ts",
+    "start": "cd dist && NODE_ENV=production bun index.js",
     "check": "bunx ultracite check",
     "fix": "bun ultracite fix"
   },

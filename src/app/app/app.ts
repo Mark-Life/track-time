@@ -1,3 +1,4 @@
+import "~/global.css";
 import type { Entry, Timer, WebSocketMessage } from "~/lib/types.ts";
 
 // DOM elements

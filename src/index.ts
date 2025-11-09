@@ -1,5 +1,5 @@
-import app from "~/app/app.html";
-import landing from "~/app/page.html";
+import app from "~/app/app/index.html";
+import landing from "~/app/index.html";
 import {
   getActiveTimer,
   getEntries,
