@@ -13,7 +13,7 @@ export const showPlayButton = () =>
     playPauseBtn.innerHTML = playIcon(24);
     playPauseBtn.setAttribute("aria-label", "Start timer");
     playPauseBtn.className =
-      "bg-green-600 text-white p-4 rounded-full hover:bg-green-700 transition cursor-pointer flex items-center justify-center";
+      "bg-primary text-primary-foreground p-4 rounded-full hover:bg-primary/80 transition cursor-pointer flex items-center justify-center";
   });
 
 export const showPauseButton = () =>
@@ -21,7 +21,7 @@ export const showPauseButton = () =>
     playPauseBtn.innerHTML = pauseIcon(24);
     playPauseBtn.setAttribute("aria-label", "Pause timer");
     playPauseBtn.className =
-      "bg-yellow-600 text-white p-4 rounded-full hover:bg-yellow-700 transition cursor-pointer flex items-center justify-center";
+      "bg-destructive text-destructive-foreground p-4 rounded-full hover:bg-destructive/80 transition cursor-pointer flex items-center justify-center";
   });
 
 const entryHTML = (entry: Entry): string => {
@@ -29,7 +29,7 @@ const entryHTML = (entry: Entry): string => {
   const endDate = new Date(entry.endedAt);
 
   return `
-    <div class="group p-4 border border-(--border) rounded-lg relative" data-entry-id="${entry.id}">
+    <div class="group p-4 border border-border rounded-lg relative" data-entry-id="${entry.id}">
       <div class="flex justify-between items-center">
         <div>
           <div class="text-sm text-gray-500">Started: ${startDate.toLocaleString()}</div>
@@ -38,7 +38,7 @@ const entryHTML = (entry: Entry): string => {
         <div class="flex items-center gap-4">
           <div class="text-xl font-bold">${entry.duration.toFixed(2)}h</div>
           <button
-            class="delete-entry-btn opacity-0 group-hover:opacity-100 transition-opacity text-white bg-(--destructive) p-2 rounded-full hover:bg-(--destructive)/80 cursor-pointer flex items-center justify-center"
+            class="delete-entry-btn opacity-0 group-hover:opacity-100 transition-opacity text-white bg-destructive p-2 rounded-full hover:bg-destructive/80 cursor-pointer flex items-center justify-center"
             data-entry-id="${entry.id}"
             aria-label="Delete entry"
           >
