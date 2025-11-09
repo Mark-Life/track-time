@@ -6,8 +6,8 @@
   "devDependencies": {
     "@biomejs/biome": "latest",
     "@types/bun": "latest",
-    "ultracite": "latest",
-    "tailwindcss": "latest"
+    "tailwindcss": "latest",
+    "ultracite": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
