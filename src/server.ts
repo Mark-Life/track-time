@@ -16,7 +16,7 @@ const createServer = Effect.gen(function* () {
       // HTML routes
       "/": landing,
       "/app": app,
-      "/projects": app, // SPA route - serves same HTML as /app
+      "/app/projects": app, // SPA route - serves same HTML as /app
     },
 
     async fetch(req: Request, srv: Server) {

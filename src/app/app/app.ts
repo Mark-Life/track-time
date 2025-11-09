@@ -53,23 +53,36 @@ const navLinks = Array.from(
   document.querySelectorAll(".nav-link")
 ) as HTMLAnchorElement[];
 
+// Normalize route (remove trailing slash, ensure it starts with /app)
+const normalizeRoute = (route: string): string => {
+  const normalized =
+    route.endsWith("/") && route !== "/" ? route.slice(0, -1) : route;
+  // If route doesn't start with /app, default to /app
+  if (!normalized.startsWith("/app")) {
+    return "/app";
+  }
+  return normalized;
+};
+
 const showPage = (route: string) => {
-  if (route === "/projects") {
+  const normalizedRoute = normalizeRoute(route);
+
+  if (normalizedRoute === "/app/projects") {
     timerPage.classList.add("hidden");
     projectsPage.classList.remove("hidden");
     // Update URL without reload
-    window.history.pushState({ route }, "", "/projects");
+    window.history.pushState({ route: normalizedRoute }, "", "/app/projects");
   } else {
     timerPage.classList.remove("hidden");
     projectsPage.classList.add("hidden");
     // Update URL without reload
-    window.history.pushState({ route }, "", "/app");
+    window.history.pushState({ route: normalizedRoute }, "", "/app");
   }
 
   // Update active nav link
   for (const link of navLinks) {
     const linkRoute = link.getAttribute("data-route");
-    if (linkRoute === route) {
+    if (linkRoute === normalizedRoute) {
       link.classList.add("font-bold", "text-primary");
     } else {
       link.classList.remove("font-bold", "text-primary");
@@ -78,7 +91,7 @@ const showPage = (route: string) => {
 };
 
 // Handle initial route
-const currentRoute = window.location.pathname;
+const currentRoute = normalizeRoute(window.location.pathname);
 showPage(currentRoute);
 
 // Handle navigation clicks
@@ -88,10 +101,17 @@ for (const link of navLinks) {
     const route = link.getAttribute("data-route");
     if (route) {
       showPage(route);
-      if (route === "/projects") {
+      if (route === "/app/projects") {
         Effect.runPromise(
           Effect.catchAll(initializeProjectsPage, (error) =>
             Effect.logError(`Failed to initialize projects page: ${error}`)
+          )
+        );
+      } else if (route === "/app") {
+        // Initialize app or load entries if already initialized
+        Effect.runPromise(
+          Effect.catchAll(initializeApp, (error) =>
+            Effect.logError(`Failed to initialize app: ${error}`)
           )
         );
       }
@@ -101,12 +121,19 @@ for (const link of navLinks) {
 
 // Handle browser back/forward
 window.addEventListener("popstate", () => {
-  const route = window.location.pathname;
+  const route = normalizeRoute(window.location.pathname);
   showPage(route);
-  if (route === "/projects") {
+  if (route === "/app/projects") {
     Effect.runPromise(
       Effect.catchAll(initializeProjectsPage, (error) =>
         Effect.logError(`Failed to initialize projects page: ${error}`)
+      )
+    );
+  } else if (route === "/app") {
+    // Initialize app or load entries if already initialized
+    Effect.runPromise(
+      Effect.catchAll(initializeApp, (error) =>
+        Effect.logError(`Failed to initialize app: ${error}`)
       )
     );
   }
@@ -115,6 +142,14 @@ window.addEventListener("popstate", () => {
 // Store references for cleanup
 let wsInstance: WebSocket | null = null;
 let intervalRefInstance: Ref.Ref<number | null> | null = null;
+let appInitialized = false;
+let appRefs: {
+  timerRef: Ref.Ref<Timer | null>;
+  intervalRef: Ref.Ref<number | null>;
+  projectsRef: Ref.Ref<Project[]>;
+  selectedProjectIdRef: Ref.Ref<string | undefined>;
+  pendingProjectIdRef: Ref.Ref<string | null>;
+} | null = null;
 
 // Cleanup function
 const cleanup = Effect.gen(function* () {
@@ -160,16 +195,53 @@ const loadProjects = Effect.gen(function* () {
   return projects;
 });
 
+// Load entries function that can be called independently
+const loadEntriesForTimerPage = Effect.gen(function* () {
+  if (!appRefs) {
+    return;
+  }
+  const entries = yield* getEntries;
+  const currentProjects = yield* Ref.get(appRefs.projectsRef);
+  yield* renderEntries(entries, currentProjects);
+});
+
 // Main app initialization
 const initializeApp = Effect.gen(function* () {
-  const timerRef = yield* Ref.make<Timer | null>(null);
-  const intervalRef = yield* Ref.make<number | null>(null);
-  const projectsRef = yield* Ref.make<Project[]>([]);
-  const selectedProjectIdRef = yield* Ref.make<string | undefined>(undefined);
-  const pendingProjectIdRef = yield* Ref.make<string | null>(null);
+  // Use existing refs if already initialized, otherwise create new ones
+  let timerRef: Ref.Ref<Timer | null>;
+  let intervalRef: Ref.Ref<number | null>;
+  let projectsRef: Ref.Ref<Project[]>;
+  let selectedProjectIdRef: Ref.Ref<string | undefined>;
+  let pendingProjectIdRef: Ref.Ref<string | null>;
 
-  // Store reference for cleanup
+  if (appInitialized && appRefs) {
+    // Already initialized, use existing refs and just load entries
+    timerRef = appRefs.timerRef;
+    intervalRef = appRefs.intervalRef;
+    projectsRef = appRefs.projectsRef;
+    selectedProjectIdRef = appRefs.selectedProjectIdRef;
+    pendingProjectIdRef = appRefs.pendingProjectIdRef;
+    yield* loadEntriesForTimerPage;
+    return;
+  }
+
+  // Create new refs for first-time initialization
+  timerRef = yield* Ref.make<Timer | null>(null);
+  intervalRef = yield* Ref.make<number | null>(null);
+  projectsRef = yield* Ref.make<Project[]>([]);
+  selectedProjectIdRef = yield* Ref.make<string | undefined>(undefined);
+  pendingProjectIdRef = yield* Ref.make<string | null>(null);
+
+  // Store references
+  appRefs = {
+    timerRef,
+    intervalRef,
+    projectsRef,
+    selectedProjectIdRef,
+    pendingProjectIdRef,
+  };
   intervalRefInstance = intervalRef;
+  appInitialized = true;
 
   // Initialize combobox
   yield* createCombobox({
@@ -659,8 +731,8 @@ const initializeApp = Effect.gen(function* () {
 });
 
 // Run the app based on current route
-const currentRouteOnLoad = window.location.pathname;
-if (currentRouteOnLoad === "/projects") {
+const currentRouteOnLoad = normalizeRoute(window.location.pathname);
+if (currentRouteOnLoad === "/app/projects") {
   Effect.runPromise(
     Effect.catchAll(initializeProjectsPage, (error) =>
       Effect.logError(`Failed to initialize projects page: ${error}`)
