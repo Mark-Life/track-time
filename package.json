@@ -13,11 +13,11 @@
     "typescript": "^5"
   },
   "scripts": {
-    "dev": "bun --bun src/index.ts",
-    "build": "bun --bun build.ts",
-    "start": "cd dist && NODE_ENV=production bun --bun --env-file=../.env index.js",
-    "check": "bunx --bun ultracite check",
-    "fix": "bun --bun ultracite fix"
+    "dev": "bun run --bun src/index.ts",
+    "build": "bun run --bun build.ts",
+    "start": "cd dist && NODE_ENV=production bun run --bun --env-file=../.env index.js",
+    "check": "bunx run --bun ultracite check",
+    "fix": "bun run --bun ultracite fix"
   },
   "dependencies": {
     "bun-plugin-tailwind": "latest",
