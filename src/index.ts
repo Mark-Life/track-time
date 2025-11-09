@@ -72,13 +72,13 @@ const server = Bun.serve({
     if (url.pathname === "/ws") {
       const upgraded = srv.upgrade(req);
       if (upgraded) {
-        return;
+        return new Response("WebSocket upgraded", { status: 200 });
       }
       return new Response("WebSocket upgrade failed", { status: 400 });
     }
 
     // Return undefined to let routes handle other requests
-    return;
+    return new Response("Not Found", { status: 404 });
   },
 
   websocket: {

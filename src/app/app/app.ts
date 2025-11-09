@@ -1,6 +1,11 @@
 import "~/global.css";
 import type { Entry, Timer, WebSocketMessage } from "~/lib/types.ts";
 
+// Accept HMR updates
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}
+
 // DOM elements
 const timerDisplay = document.getElementById("timer-display") as HTMLDivElement;
 const startBtn = document.getElementById("start-btn") as HTMLButtonElement;
@@ -68,9 +73,9 @@ startBtn.addEventListener("click", async () => {
 stopBtn.addEventListener("click", async () => {
   const response = await fetch("/api/timer/stop", { method: "POST" });
   if (response.ok) {
-    const entry: Entry = await response.json();
     stopTimerUI();
-    addEntryToList(entry);
+    // dont need to add entry to list here because it is already added via websocket message
+    // addEntryToList(entry);
   }
 });
 
@@ -118,7 +123,7 @@ function stopTimerUI() {
 function renderEntries(entries: Entry[]) {
   if (entries.length === 0) {
     entriesList.innerHTML =
-      '<p class="text-gray-500">No entries yet. Start tracking!</p>';
+      '<p class="text-gray-500" data-no-entries>No entries yet. Start tracking!</p>';
     return;
   }
 
@@ -136,7 +141,7 @@ function addEntryToList(entry: Entry) {
   );
 
   // Remove "no entries" message if exists
-  const noEntries = entriesList.querySelector(".text-gray-500");
+  const noEntries = entriesList.querySelector("[data-no-entries]");
   if (noEntries) {
     noEntries.remove();
   }

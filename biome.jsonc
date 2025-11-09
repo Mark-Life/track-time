@@ -10,7 +10,10 @@
   "linter": {
     "rules": {
       "suspicious": {
-        "noConsole": "warn"
+        "noConsole": "off"
+      },
+      "style": {
+        "noMagicNumbers": "off"
       }
     }
   }
