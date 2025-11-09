@@ -496,9 +496,14 @@ const initializeApp = Effect.gen(function* () {
     Effect.runPromise(
       Effect.catchAll(
         Effect.gen(function* () {
-          yield* stopTimer;
+          const entry = yield* stopTimer;
           yield* stopTimerUI(intervalRef);
           yield* Ref.set(timerRef, null);
+          // Reload and render entries to show the new entry (works for both online and offline)
+          if (entry) {
+            const entries = yield* getEntries;
+            yield* renderEntries(entries);
+          }
         }),
         (error) => Effect.logError(`Failed to stop timer: ${error}`)
         // Could show user-friendly error message here
