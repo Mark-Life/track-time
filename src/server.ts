@@ -36,17 +36,53 @@ const createServer = Effect.gen(function* () {
       },
 
       "/api/timer/start": {
-        async POST() {
-          const timer = await Effect.runPromise(startTimer());
+        POST(req: Request) {
+          return Effect.runPromise(
+            Effect.gen(function* () {
+              let body: { startedAt?: string } | undefined;
+              try {
+                body = yield* Effect.tryPromise({
+                  try: () => req.json() as Promise<{ startedAt?: string }>,
+                  catch: () => new Error("Failed to parse body"),
+                });
+              } catch {
+                // No body provided, use current time
+                body = undefined;
+              }
 
-          // Broadcast to all WebSocket clients
-          const message: WebSocketMessage = {
-            type: "timer:started",
-            data: { startedAt: timer.startedAt },
-          };
-          serverInstance?.publish("timer:updates", JSON.stringify(message));
+              // Validate startedAt if provided
+              if (body?.startedAt) {
+                const date = new Date(body.startedAt);
+                if (Number.isNaN(date.getTime())) {
+                  return Response.json(
+                    { error: "Invalid startedAt format. Expected ISO string." },
+                    { status: 400 }
+                  );
+                }
+              }
 
-          return Response.json(timer);
+              const timer = yield* startTimer(body?.startedAt);
+
+              // Broadcast to all WebSocket clients
+              const message: WebSocketMessage = {
+                type: "timer:started",
+                data: { startedAt: timer.startedAt },
+              };
+              serverInstance?.publish("timer:updates", JSON.stringify(message));
+
+              return Response.json(timer);
+            })
+          ).catch((error) =>
+            Response.json(
+              {
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to start timer",
+              },
+              { status: 500 }
+            )
+          );
         },
       },
 
@@ -127,17 +163,48 @@ const createServer = Effect.gen(function* () {
 
         if (req.method === "PUT") {
           return Effect.runPromise(
+            // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: TODO fix me later
             Effect.gen(function* () {
-              const body = yield* Effect.tryPromise({
-                try: () =>
-                  req.json() as Promise<{ startedAt: string; endedAt: string }>,
-                catch: (error) =>
-                  new Error(`Failed to parse request body: ${error}`),
-              });
+              const body: { startedAt: string; endedAt: string } =
+                yield* Effect.tryPromise({
+                  try: () =>
+                    req.json() as Promise<{
+                      startedAt: string;
+                      endedAt: string;
+                    }>,
+                  catch: (error) =>
+                    new Error(`Failed to parse request body: ${error}`),
+                });
 
               if (!(body.startedAt && body.endedAt)) {
                 return Response.json(
                   { error: "startedAt and endedAt are required" },
+                  { status: 400 }
+                );
+              }
+
+              // Validate date formats
+              const startedAtDate = new Date(body.startedAt);
+              const endedAtDate = new Date(body.endedAt);
+
+              if (Number.isNaN(startedAtDate.getTime())) {
+                return Response.json(
+                  { error: "Invalid startedAt format. Expected ISO string." },
+                  { status: 400 }
+                );
+              }
+
+              if (Number.isNaN(endedAtDate.getTime())) {
+                return Response.json(
+                  { error: "Invalid endedAt format. Expected ISO string." },
+                  { status: 400 }
+                );
+              }
+
+              // Validate end time is after start time
+              if (endedAtDate.getTime() <= startedAtDate.getTime()) {
+                return Response.json(
+                  { error: "End time must be after start time" },
                   { status: 400 }
                 );
               }

@@ -15,6 +15,7 @@ import {
   renderEntries,
   renderEntryEditForm,
   renderEntryView,
+  showFormError,
   showPlayButton,
 } from "./dom.ts";
 import { entriesList, playPauseBtn } from "./dom-elements.ts";
@@ -30,10 +31,44 @@ if (import.meta.hot) {
   import.meta.hot.accept();
 }
 
+// Store references for cleanup
+let wsInstance: WebSocket | null = null;
+let intervalRefInstance: Ref.Ref<number | null> | null = null;
+
+// Cleanup function
+const cleanup = Effect.gen(function* () {
+  // Close WebSocket if open
+  if (wsInstance && wsInstance.readyState === WebSocket.OPEN) {
+    wsInstance.close();
+    wsInstance = null;
+  }
+
+  // Clear interval if exists
+  if (intervalRefInstance) {
+    const intervalId = yield* Ref.get(intervalRefInstance);
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      yield* Ref.set(intervalRefInstance, null);
+    }
+  }
+});
+
+// Set up cleanup on page unload
+window.addEventListener("beforeunload", () => {
+  Effect.runPromise(cleanup);
+});
+
+window.addEventListener("unload", () => {
+  Effect.runPromise(cleanup);
+});
+
 // Main app initialization
 const initializeApp = Effect.gen(function* () {
   const timerRef = yield* Ref.make<Timer | null>(null);
   const intervalRef = yield* Ref.make<number | null>(null);
+
+  // Store reference for cleanup
+  intervalRefInstance = intervalRef;
 
   // Load initial data
   const loadInitialData = Effect.gen(function* () {
@@ -96,6 +131,7 @@ const initializeApp = Effect.gen(function* () {
   // WebSocket connection
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+  wsInstance = ws;
 
   ws.onopen = () => {
     Effect.runPromise(Effect.log("WebSocket connected"));
@@ -189,7 +225,7 @@ const initializeApp = Effect.gen(function* () {
             }
           } else {
             // Timer is stopped, start it
-            const newTimer = yield* startTimer;
+            const newTimer = yield* startTimer();
             yield* Ref.set(timerRef, newTimer);
             yield* startTimerUI(timerRef, intervalRef);
           }
@@ -290,15 +326,39 @@ const initializeApp = Effect.gen(function* () {
     const endedAtInput = formData.get("endedAt") as string;
 
     if (!startedAtInput) {
+      Effect.runPromise(showFormError(form, "Start time is required"));
       return;
     }
     if (!endedAtInput) {
+      Effect.runPromise(showFormError(form, "End time is required"));
+      return;
+    }
+
+    // Validate date formats
+    const startedAtDate = new Date(startedAtInput);
+    const endedAtDate = new Date(endedAtInput);
+
+    if (Number.isNaN(startedAtDate.getTime())) {
+      Effect.runPromise(showFormError(form, "Invalid start time format"));
+      return;
+    }
+
+    if (Number.isNaN(endedAtDate.getTime())) {
+      Effect.runPromise(showFormError(form, "Invalid end time format"));
+      return;
+    }
+
+    // Validate end time is after start time
+    if (endedAtDate.getTime() <= startedAtDate.getTime()) {
+      Effect.runPromise(
+        showFormError(form, "End time must be after start time")
+      );
       return;
     }
 
     // Convert datetime-local to ISO string
-    const startedAt = new Date(startedAtInput).toISOString();
-    const endedAt = new Date(endedAtInput).toISOString();
+    const startedAt = startedAtDate.toISOString();
+    const endedAt = endedAtDate.toISOString();
 
     Effect.runPromise(
       Effect.catchAll(
@@ -309,6 +369,9 @@ const initializeApp = Effect.gen(function* () {
         (error) =>
           Effect.gen(function* () {
             yield* Effect.logError(`Failed to update entry: ${error}`);
+            const errorMessage =
+              error instanceof Error ? error.message : "Failed to update entry";
+            yield* showFormError(form, errorMessage);
             // On error, reload entries to show current state
             const entries = yield* getEntries;
             yield* renderEntries(entries);

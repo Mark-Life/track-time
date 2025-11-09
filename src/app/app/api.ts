@@ -34,37 +34,44 @@ export const getTimer = Effect.gen(function* () {
   return timer;
 });
 
-export const startTimer = Effect.gen(function* () {
-  const timer: Timer = { startedAt: new Date().toISOString() };
+export const startTimer = (startedAt?: string) =>
+  Effect.gen(function* () {
+    const timerStartedAt = startedAt ?? new Date().toISOString();
+    const timer: Timer = { startedAt: timerStartedAt };
 
-  if (!navigator.onLine) {
-    yield* saveTimerToLocal(timer);
-    return timer;
-  }
+    if (!navigator.onLine) {
+      yield* saveTimerToLocal(timer);
+      return timer;
+    }
 
-  const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/timer/start", { method: "POST" }),
-    catch: (error) => {
-      Effect.runSync(saveTimerToLocal(timer));
-      return new Error(`Failed to start timer: ${error}`);
-    },
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch("/api/timer/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: timerStartedAt }),
+        }),
+      catch: (error) => {
+        Effect.runSync(saveTimerToLocal(timer));
+        return new Error(`Failed to start timer: ${error}`);
+      },
+    });
+
+    if (!response.ok) {
+      yield* saveTimerToLocal(timer);
+      return timer;
+    }
+
+    const serverTimer = yield* Effect.tryPromise({
+      try: () => response.json() as Promise<Timer>,
+      catch: (error) => {
+        Effect.runSync(saveTimerToLocal(timer));
+        return new Error(`Failed to parse timer JSON: ${error}`);
+      },
+    });
+
+    return serverTimer;
   });
-
-  if (!response.ok) {
-    yield* saveTimerToLocal(timer);
-    return timer;
-  }
-
-  const serverTimer = yield* Effect.tryPromise({
-    try: () => response.json() as Promise<Timer>,
-    catch: (error) => {
-      Effect.runSync(saveTimerToLocal(timer));
-      return new Error(`Failed to parse timer JSON: ${error}`);
-    },
-  });
-
-  return serverTimer;
-});
 
 export const stopTimer = Effect.gen(function* () {
   // Get timer from local storage or server

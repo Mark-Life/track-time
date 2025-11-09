@@ -39,18 +39,18 @@ export const getActiveTimer = (): Effect.Effect<Timer | null, Error> =>
   });
 
 // Start timer
-export const startTimer = (): Effect.Effect<Timer, Error> =>
+export const startTimer = (startedAt?: string): Effect.Effect<Timer, Error> =>
   Effect.gen(function* () {
-    const startedAt = new Date().toISOString();
+    const timerStartedAt = startedAt ?? new Date().toISOString();
 
     yield* Effect.tryPromise({
-      try: () => redis.hset("active:timer", "startedAt", startedAt),
+      try: () => redis.hset("active:timer", "startedAt", timerStartedAt),
       catch: (error) => new Error(`Failed to start timer: ${error}`),
     });
 
-    yield* Effect.log(`⏱️  Timer started at ${startedAt}`);
+    yield* Effect.log(`⏱️  Timer started at ${timerStartedAt}`);
 
-    return { startedAt };
+    return { startedAt: timerStartedAt };
   });
 
 // Stop timer and save entry
@@ -121,13 +121,20 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
       return [];
     }
 
-    const entries: Entry[] = [];
-    for (const id of ids) {
-      const data: Record<string, string> | null = yield* Effect.tryPromise({
+    // Fetch all entries in parallel
+    const entryPromises = ids.map((id) =>
+      Effect.tryPromise({
         try: () => redis.hgetall(`entry:${id}`),
         catch: (error) => new Error(`Failed to get entry ${id}: ${error}`),
-      });
+      })
+    );
 
+    const entryDataArray = yield* Effect.all(entryPromises, {
+      concurrency: "unbounded",
+    });
+
+    const entries: Entry[] = [];
+    for (const data of entryDataArray) {
       if (data) {
         const entryData = data as {
           id: string;
@@ -172,8 +179,24 @@ export const updateEntry = (
       yield* Effect.fail(new Error(`Entry with id ${id} not found`));
     }
 
-    const startTime = new Date(startedAt).getTime();
-    const endTime = new Date(endedAt).getTime();
+    // Validate date formats
+    const startedAtDate = new Date(startedAt);
+    const endedAtDate = new Date(endedAt);
+
+    if (Number.isNaN(startedAtDate.getTime())) {
+      yield* Effect.fail(
+        new Error("Invalid startedAt format. Expected ISO string.")
+      );
+    }
+
+    if (Number.isNaN(endedAtDate.getTime())) {
+      yield* Effect.fail(
+        new Error("Invalid endedAt format. Expected ISO string.")
+      );
+    }
+
+    const startTime = startedAtDate.getTime();
+    const endTime = endedAtDate.getTime();
     const duration = (endTime - startTime) / (1000 * 60 * 60);
 
     if (duration < 0) {

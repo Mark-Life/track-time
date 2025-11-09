@@ -159,3 +159,24 @@ export const addEntryToList = (entry: Entry) =>
       noEntries.remove();
     }
   });
+
+export const showFormError = (form: HTMLFormElement, message: string) =>
+  Effect.sync(() => {
+    // Remove existing error if any
+    const existingError = form.querySelector(".form-error");
+    if (existingError) {
+      existingError.remove();
+    }
+
+    // Create error element
+    const errorElement = document.createElement("div");
+    errorElement.className =
+      "form-error text-red-500 text-sm mt-2 p-2 bg-red-50 border border-red-200 rounded";
+    errorElement.textContent = message;
+    form.appendChild(errorElement);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      errorElement.remove();
+    }, 5000);
+  });
