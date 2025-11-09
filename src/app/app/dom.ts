@@ -36,9 +36,9 @@ const entryHTML = (entry: Entry): string => {
           <div class="text-sm text-gray-500">Ended: ${endDate.toLocaleString()}</div>
         </div>
         <div class="flex items-center gap-4">
-          <div class="text-xl font-bold">${entry.duration.toFixed(2)}h</div>
+          <div class="text-md font-bold">${entry.duration.toFixed(2)}h</div>
           <button
-            class="delete-entry-btn opacity-0 group-hover:opacity-100 transition-opacity text-white bg-destructive p-2 rounded-full hover:bg-destructive/80 cursor-pointer flex items-center justify-center"
+            class="delete-entry-btn text-white bg-destructive p-2 rounded-full hover:bg-destructive/80 cursor-pointer flex items-center justify-center"
             data-entry-id="${entry.id}"
             aria-label="Delete entry"
           >

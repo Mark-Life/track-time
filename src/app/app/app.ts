@@ -87,7 +87,8 @@ const initializeApp = Effect.gen(function* () {
   });
 
   // WebSocket connection
-  const ws = new WebSocket(`ws://${window.location.host}/ws`);
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
   ws.onopen = () => {
     Effect.runPromise(Effect.log("WebSocket connected"));
