@@ -3,10 +3,9 @@
 export const timerDisplay = document.getElementById(
   "timer-display"
 ) as HTMLDivElement;
-export const startBtn = document.getElementById(
-  "start-btn"
+export const playPauseBtn = document.getElementById(
+  "play-pause-btn"
 ) as HTMLButtonElement;
-export const stopBtn = document.getElementById("stop-btn") as HTMLButtonElement;
 export const entriesList = document.getElementById(
   "entries-list"
 ) as HTMLDivElement;

@@ -1,10 +1,6 @@
 import { Effect, Ref } from "effect";
 import type { Timer } from "~/lib/types.ts";
-import {
-  setStartBtnDisabled,
-  setStopBtnDisabled,
-  updateTimerDisplay,
-} from "./dom.ts";
+import { showPauseButton, showPlayButton, updateTimerDisplay } from "./dom.ts";
 
 export const formatElapsedTime = (startedAt: string): string => {
   const startTime = new Date(startedAt).getTime();
@@ -23,8 +19,7 @@ export const startTimerUI = (
   intervalRef: Ref.Ref<number | null>
 ) =>
   Effect.gen(function* () {
-    yield* setStartBtnDisabled(true);
-    yield* setStopBtnDisabled(false);
+    yield* showPauseButton();
 
     const updateDisplay = Effect.gen(function* () {
       const timer = yield* Ref.get(timerRef);
@@ -56,9 +51,8 @@ export const startTimerUI = (
 
 export const stopTimerUI = (intervalRef: Ref.Ref<number | null>) =>
   Effect.gen(function* () {
-    yield* setStartBtnDisabled(false);
-    yield* setStopBtnDisabled(true);
-    yield* updateTimerDisplay("Ready to start");
+    yield* showPlayButton();
+    yield* updateTimerDisplay("00:00:00");
 
     const intervalId = yield* Ref.get(intervalRef);
     if (intervalId !== null) {

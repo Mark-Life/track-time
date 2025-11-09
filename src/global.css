@@ -1,1 +1,76 @@
 @import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+  background-color: hsl(var(--background));
+}
+@layer base {
+  :root {
+    --background: 100 0% 96%;
+    --foreground: 0 0% 6%;
+    --card: oklch(from var(--primary-base) l c h / 0.1);
+    --card-foreground: var(--foreground);
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+    --primary-base: oklch(53.11% 0.1062 234.34);
+    --primary: var(--primary-base);
+    --primary-foreground: 0 0% 100%;
+    --secondary: 39 100% 50%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 165 9% 91%;
+    --muted-foreground: 0 0% 32%;
+    --accent: 176 25% 89%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: oklch(54.26% 0.1899 27.12);
+    --border: oklch(from var(--primary-base) l c h / 0.2);
+    --input: oklch(from var(--primary-base) l c h / 0.2);
+    --ring: oklch(from var(--primary-base) l c h / 0.2);
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 1.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+    --card: var(--background);
+    --card-foreground: var(--foreground);
+    --popover: 0 0% 0%;
+    --popover-foreground: 33 27% 92%;
+    --primary: var(--primary-base);
+    --primary-foreground: 0 0% 9%;
+    --secondary: 39 100% 50%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 63% 31%;
+    --border: oklch(from var(--primary-base) l c h / 0.2);
+    --input: oklch(from var(--primary-base) l c h / 0.2);
+    --ring: oklch(from var(--primary-base) l c h / 0.2);
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}

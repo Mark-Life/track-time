@@ -20,7 +20,7 @@
     "fix": "bun --bun ultracite fix"
   },
   "dependencies": {
-    "bun-plugin-tailwind": "^0.1.2",
+    "bun-plugin-tailwind": "latest",
     "effect": "latest"
   }
 }

@@ -9,8 +9,8 @@ import {
   startTimer,
   stopTimer,
 } from "./api.ts";
-import { addEntryToList, renderEntries } from "./dom.ts";
-import { entriesList, startBtn, stopBtn } from "./dom-elements.ts";
+import { addEntryToList, renderEntries, showPlayButton } from "./dom.ts";
+import { entriesList, playPauseBtn } from "./dom-elements.ts";
 import {
   hideOfflineIndicator,
   showOfflineIndicator,
@@ -35,12 +35,15 @@ const initializeApp = Effect.gen(function* () {
     if (localTimer && !navigator.onLine) {
       yield* Ref.set(timerRef, localTimer);
       yield* startTimerUI(timerRef, intervalRef);
-    }
-
-    const timer = yield* getTimer;
-    if (timer) {
-      yield* Ref.set(timerRef, timer);
-      yield* startTimerUI(timerRef, intervalRef);
+    } else {
+      const timer = yield* getTimer;
+      if (timer) {
+        yield* Ref.set(timerRef, timer);
+        yield* startTimerUI(timerRef, intervalRef);
+      } else {
+        // No timer active, show play button
+        yield* showPlayButton();
+      }
     }
 
     const entries = yield* getEntries;
@@ -140,35 +143,30 @@ const initializeApp = Effect.gen(function* () {
     Effect.runPromise(Effect.log("WebSocket disconnected"));
   };
 
-  // Button handlers
-  startBtn.addEventListener("click", () => {
+  // Button handler - toggle play/pause based on timer state
+  playPauseBtn.addEventListener("click", () => {
     Effect.runPromise(
       Effect.catchAll(
         Effect.gen(function* () {
-          const timer = yield* startTimer;
-          yield* Ref.set(timerRef, timer);
-          yield* startTimerUI(timerRef, intervalRef);
-        }),
-        (error) => Effect.logError(`Failed to start timer: ${error}`)
-        // Could show user-friendly error message here
-      )
-    );
-  });
-
-  stopBtn.addEventListener("click", () => {
-    Effect.runPromise(
-      Effect.catchAll(
-        Effect.gen(function* () {
-          const entry = yield* stopTimer;
-          yield* stopTimerUI(intervalRef);
-          yield* Ref.set(timerRef, null);
-          // Reload and render entries to show the new entry (works for both online and offline)
-          if (entry) {
-            const entries = yield* getEntries;
-            yield* renderEntries(entries);
+          const timer = yield* Ref.get(timerRef);
+          if (timer) {
+            // Timer is running, stop it
+            const entry = yield* stopTimer;
+            yield* stopTimerUI(intervalRef);
+            yield* Ref.set(timerRef, null);
+            // Reload and render entries to show the new entry (works for both online and offline)
+            if (entry) {
+              const entries = yield* getEntries;
+              yield* renderEntries(entries);
+            }
+          } else {
+            // Timer is stopped, start it
+            const newTimer = yield* startTimer;
+            yield* Ref.set(timerRef, newTimer);
+            yield* startTimerUI(timerRef, intervalRef);
           }
         }),
-        (error) => Effect.logError(`Failed to stop timer: ${error}`)
+        (error) => Effect.logError(`Failed to toggle timer: ${error}`)
         // Could show user-friendly error message here
       )
     );

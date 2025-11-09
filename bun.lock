@@ -5,7 +5,7 @@
     "": {
       "name": "time-space",
       "dependencies": {
-        "bun-plugin-tailwind": "^0.1.2",
+        "bun-plugin-tailwind": "latest",
         "effect": "latest",
       },
       "devDependencies": {

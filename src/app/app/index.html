@@ -6,34 +6,45 @@
     <link rel="stylesheet" href="~/global.css" />
     <title>Time Tracker - App</title>
   </head>
-  <body class="min-h-screen bg-gray-50 p-8">
+  <body class="min-h-screen bg-(--background) text-(--foreground) p-8">
     <div class="max-w-4xl mx-auto">
-      <h1 class="text-3xl font-bold mb-8">Time Tracker</h1>
+      <h1 class="text-3xl font-bold mb-8 text-primary">Time Tracker</h1>
 
       <!-- Timer Section -->
-      <div class="bg-white rounded-lg shadow p-6 mb-8">
-        <div id="timer-display" class="text-2xl font-mono mb-4">
-          Ready to start
+      <div
+        class="border-2 border-(--border) rounded-lg p-6 mb-8 mx-auto flex flex-col items-center"
+      >
+        <div
+          id="timer-display"
+          class="text-2xl font-mono mb-4 text-(--primary)"
+        >
+          00:00:00
         </div>
-        <div class="flex gap-4">
-          <button
-            id="start-btn"
-            class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition"
+        <button
+          id="play-pause-btn"
+          class="bg-green-600 text-white p-4 rounded-full hover:bg-green-700 transition cursor-pointer flex items-center justify-center"
+          aria-label="Start timer"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
-            Start
-          </button>
-          <button
-            id="stop-btn"
-            class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 transition"
-            disabled
-          >
-            Stop
-          </button>
-        </div>
+            <path
+              d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+            />
+          </svg>
+        </button>
       </div>
 
       <!-- Entries Section -->
-      <div class="bg-white rounded-lg shadow p-6">
+      <div class="">
         <h2 class="text-xl font-bold mb-4">Entries</h2>
         <div id="entries-list" class="space-y-2"></div>
       </div>
