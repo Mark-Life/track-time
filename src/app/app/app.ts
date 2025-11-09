@@ -2,9 +2,15 @@ import "~/global.css";
 import { Effect, Ref } from "effect";
 import { getTimerFromLocal } from "~/lib/local-storage.ts";
 import type { Timer, WebSocketMessage } from "~/lib/types.ts";
-import { getEntries, getTimer, startTimer, stopTimer } from "./api.ts";
+import {
+  deleteEntry,
+  getEntries,
+  getTimer,
+  startTimer,
+  stopTimer,
+} from "./api.ts";
 import { addEntryToList, renderEntries } from "./dom.ts";
-import { startBtn, stopBtn } from "./dom-elements.ts";
+import { entriesList, startBtn, stopBtn } from "./dom-elements.ts";
 import {
   hideOfflineIndicator,
   showOfflineIndicator,
@@ -164,6 +170,31 @@ const initializeApp = Effect.gen(function* () {
         }),
         (error) => Effect.logError(`Failed to stop timer: ${error}`)
         // Could show user-friendly error message here
+      )
+    );
+  });
+
+  // Delete entry handler (event delegation)
+  entriesList.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const deleteBtn = target.closest(".delete-entry-btn") as HTMLButtonElement;
+    if (!deleteBtn) {
+      return;
+    }
+
+    const entryId = deleteBtn.getAttribute("data-entry-id");
+    if (!entryId) {
+      return;
+    }
+
+    Effect.runPromise(
+      Effect.catchAll(
+        Effect.gen(function* () {
+          yield* deleteEntry(entryId);
+          const entries = yield* getEntries;
+          yield* renderEntries(entries);
+        }),
+        (error) => Effect.logError(`Failed to delete entry: ${error}`)
       )
     );
   });

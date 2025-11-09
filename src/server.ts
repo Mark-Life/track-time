@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import app from "~/app/app/index.html";
 import landing from "~/app/index.html";
 import {
+  deleteEntry,
   getActiveTimer,
   getEntries,
   redisResource,
@@ -11,6 +12,8 @@ import {
 import type { WebSocketMessage } from "./lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
+
+const ENTRIES_ID_REGEX = /^\/api\/entries\/(.+)$/;
 
 const createServer = Effect.gen(function* () {
   let serverInstance: Server | null = null;
@@ -82,6 +85,30 @@ const createServer = Effect.gen(function* () {
           return new Response("WebSocket upgraded", { status: 200 });
         }
         return new Response("WebSocket upgrade failed", { status: 400 });
+      }
+
+      // DELETE /api/entries/:id
+      const entriesMatch = url.pathname.match(ENTRIES_ID_REGEX);
+      if (entriesMatch && req.method === "DELETE") {
+        const id = entriesMatch[1];
+        if (id) {
+          return Effect.runPromise(
+            Effect.gen(function* () {
+              yield* deleteEntry(id);
+              return Response.json({ success: true });
+            })
+          ).catch((error) =>
+            Response.json(
+              {
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to delete entry",
+              },
+              { status: 500 }
+            )
+          );
+        }
       }
 
       // Return undefined to let routes handle other requests

@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import {
   clearLocalTimer,
+  clearSyncedEntry,
   getLocalEntries,
   getTimerFromLocal,
   saveEntryToLocal,
@@ -154,3 +155,27 @@ export const getEntries = Effect.gen(function* () {
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
   );
 });
+
+export const deleteEntry = (id: string) =>
+  Effect.gen(function* () {
+    if (!navigator.onLine) {
+      yield* clearSyncedEntry(id);
+      return;
+    }
+
+    const response = yield* Effect.tryPromise({
+      try: () => fetch(`/api/entries/${id}`, { method: "DELETE" }),
+      catch: (error) => {
+        Effect.runSync(clearSyncedEntry(id));
+        return new Error(`Failed to delete entry: ${error}`);
+      },
+    });
+
+    if (!response.ok) {
+      yield* clearSyncedEntry(id);
+      return;
+    }
+
+    // Also remove from localStorage if it exists there
+    yield* clearSyncedEntry(id);
+  });

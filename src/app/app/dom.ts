@@ -27,13 +27,22 @@ const entryHTML = (entry: Entry): string => {
   const endDate = new Date(entry.endedAt);
 
   return `
-    <div class="p-4 border border-gray-200 rounded">
+    <div class="group p-4 border border-gray-200 rounded relative" data-entry-id="${entry.id}">
       <div class="flex justify-between items-start">
         <div>
           <div class="text-sm text-gray-500">Started: ${startDate.toLocaleString()}</div>
           <div class="text-sm text-gray-500">Ended: ${endDate.toLocaleString()}</div>
         </div>
-        <div class="text-xl font-bold">${entry.duration.toFixed(2)}h</div>
+        <div class="flex items-center gap-4">
+          <div class="text-xl font-bold">${entry.duration.toFixed(2)}h</div>
+          <button
+            class="delete-entry-btn opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white px-2 py-1 rounded text-sm hover:bg-red-700"
+            data-entry-id="${entry.id}"
+            aria-label="Delete entry"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   `;

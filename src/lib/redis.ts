@@ -154,3 +154,19 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
 
     return sorted;
   });
+
+// Delete entry
+export const deleteEntry = (id: string): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    yield* Effect.tryPromise({
+      try: () => redis.del(`entry:${id}`),
+      catch: (error) => new Error(`Failed to delete entry hash: ${error}`),
+    });
+
+    yield* Effect.tryPromise({
+      try: () => redis.srem("entries:list", id),
+      catch: (error) => new Error(`Failed to remove entry from list: ${error}`),
+    });
+
+    yield* Effect.log(`🗑️  Deleted entry ${id}`);
+  });
