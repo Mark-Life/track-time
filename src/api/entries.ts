@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getUserId, isAuthError } from "~/lib/auth/auth";
+import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
 import { deleteEntry, getEntries, updateEntry } from "~/lib/redis-scoped.ts";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 
@@ -67,7 +67,7 @@ const createEntryUpdatedMessage = (entry: Entry): WebSocketMessage => ({
 export const handleEntriesGet = (req: Request) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const entries = yield* getEntries(userId);
       return Response.json(entries);
     })
@@ -86,7 +86,7 @@ export const handleEntriesGet = (req: Request) =>
 export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const body = yield* parseEntryUpdateBody(req);
 
       const validationError = validateEntryDates(body.startedAt, body.endedAt);
@@ -123,7 +123,7 @@ export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
 export const handleEntryDelete = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       yield* deleteEntry(userId, id);
 
       const message: WebSocketMessage = {

@@ -12,10 +12,19 @@ import { createRedirectResponse } from "./utils.ts";
 
 const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
   const middlewareChain = compose(requireAuthForAssets, requireAuth);
+  const url = new URL(req.url);
+  const pathname = url.pathname;
+
   return await Effect.runPromise(
-    Effect.catchAll(middlewareChain(req), () =>
-      Effect.succeed(createRedirectResponse("/login"))
-    )
+    Effect.catchAll(middlewareChain(req), () => {
+      // If middleware threw an error, default based on route type
+      if (pathname.startsWith("/api")) {
+        return Effect.succeed(
+          Response.json({ error: "Unauthorized" }, { status: 401 })
+        );
+      }
+      return Effect.succeed(createRedirectResponse("/login"));
+    })
   );
 };
 

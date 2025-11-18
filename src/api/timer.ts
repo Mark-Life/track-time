@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getUserId, isAuthError } from "~/lib/auth/auth";
+import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
 import { getActiveTimer, startTimer, stopTimer } from "~/lib/redis-scoped.ts";
 import type { WebSocketMessage } from "~/lib/types.ts";
 
@@ -45,7 +45,7 @@ const createTimerStartedMessage = (timer: {
 export const handleTimerGet = (req: Request) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const timer = yield* getActiveTimer(userId);
       return Response.json(timer);
     })
@@ -64,7 +64,7 @@ export const handleTimerGet = (req: Request) =>
 export const handleTimerStart = (req: Request, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const body = yield* parseTimerStartBody(req);
 
       if (body?.startedAt) {
@@ -96,7 +96,7 @@ export const handleTimerStart = (req: Request, server: Server) =>
 export const handleTimerStop = (req: Request, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const entry = yield* stopTimer(userId);
 
       if (!entry) {

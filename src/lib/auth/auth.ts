@@ -3,6 +3,9 @@ import type { JWTPayload } from "../types.ts";
 import { AuthError } from "../types.ts";
 import { verify } from "./jwt.ts";
 
+// WeakMap to store verified userId per request (set by middleware)
+const verifiedUserIdMap = new WeakMap<Request, string>();
+
 const parseCookieHeader = (
   cookieHeader: string | null
 ): Record<string, string> => {
@@ -66,6 +69,29 @@ export const getUserId = (req: Request): Effect.Effect<string, Error> =>
     return payload.userId;
   });
 
+/**
+ * Stores verified userId in WeakMap for later retrieval by handlers.
+ * Should only be called by middleware after successful verification.
+ */
+export const setVerifiedUserId = (req: Request, userId: string): void => {
+  verifiedUserIdMap.set(req, userId);
+};
+
+/**
+ * Gets userId from WeakMap (assumes middleware already verified).
+ * Throws if userId not found (should not happen if middleware ran).
+ */
+export const getVerifiedUserId = (req: Request): Effect.Effect<string, Error> =>
+  Effect.sync(() => {
+    const userId = verifiedUserIdMap.get(req);
+    if (!userId) {
+      throw new AuthError(
+        "Request not authenticated (middleware should have verified)"
+      );
+    }
+    return userId;
+  });
+
 export const getAuthPayload = (
   req: Request
 ): Effect.Effect<JWTPayload, Error> =>
@@ -91,7 +117,11 @@ export const requireAuth =
   <T>(handler: (req: Request, userId: string) => Effect.Effect<T, Error>) =>
   (req: Request): Effect.Effect<T, Error> =>
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      // Try to get verified userId first (if middleware already verified)
+      // Fall back to verifying if not found (for backwards compatibility)
+      const userId = yield* Effect.catchAll(getVerifiedUserId(req), () =>
+        getUserId(req)
+      );
       return yield* handler(req, userId);
     });
 

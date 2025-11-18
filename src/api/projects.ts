@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getUserId, isAuthError } from "~/lib/auth/auth";
+import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
 import {
   createProject,
   deleteProject,
@@ -13,7 +13,7 @@ type Server = ReturnType<typeof Bun.serve>;
 export const handleProjectsGet = (req: Request) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const projects = yield* getProjects(userId);
       return Response.json(projects);
     })
@@ -33,7 +33,7 @@ export const handleProjectsGet = (req: Request) =>
 export const handleProjectCreate = (req: Request, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const body: { name: string } = yield* Effect.tryPromise({
         try: () => req.json() as Promise<{ name: string }>,
         catch: (error) => new Error(`Failed to parse request body: ${error}`),
@@ -72,7 +72,7 @@ export const handleProjectCreate = (req: Request, server: Server) =>
 export const handleProjectUpdate = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       const body: { name: string } = yield* Effect.tryPromise({
         try: () => req.json() as Promise<{ name: string }>,
         catch: (error) => new Error(`Failed to parse request body: ${error}`),
@@ -116,7 +116,7 @@ export const handleProjectDelete = (
 ) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const userId = yield* getUserId(req);
+      const userId = yield* getVerifiedUserId(req);
       yield* deleteProject(userId, id, deleteEntries);
 
       const message: WebSocketMessage = {

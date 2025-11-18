@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { extractToken } from "./auth.ts";
+import { extractToken, setVerifiedUserId } from "./auth.ts";
 import { verify } from "./jwt.ts";
 
 export type Middleware = (
@@ -17,6 +17,17 @@ const createRedirectResponse = (location: string): Response =>
 const CHUNK_PATTERN = /^\/chunk-[a-z0-9]+\.(js|css)$/i;
 
 const isAppRoute = (pathname: string): boolean => pathname.startsWith("/app");
+
+const isApiRoute = (pathname: string): boolean => pathname.startsWith("/api");
+
+const isPublicApiRoute = (pathname: string): boolean => {
+  const publicRoutes = [
+    "/api/auth/register",
+    "/api/auth/login",
+    "/api/auth/logout",
+  ];
+  return publicRoutes.some((route) => pathname === route);
+};
 
 const isAssetPath = (pathname: string): boolean => {
   // Check for CSS files
@@ -52,23 +63,35 @@ export const requireAuth: Middleware = (req) =>
     const url = new URL(req.url);
     const pathname = url.pathname;
 
-    yield* Effect.log(`[middleware] Checking auth for ${pathname}`);
+    // Check auth for app routes and API routes (except public auth routes)
+    const shouldCheckAuth =
+      isAppRoute(pathname) ||
+      (isApiRoute(pathname) && !isPublicApiRoute(pathname));
 
-    // Only check auth for app routes
-    if (!isAppRoute(pathname)) {
+    if (!shouldCheckAuth) {
       return null;
     }
 
     const token = yield* extractToken(req);
 
     if (!token) {
+      // For API routes, return 401; for app routes, redirect
+      if (isApiRoute(pathname)) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
       return createRedirectResponse("/login");
     }
 
     try {
-      yield* verify(token);
+      const payload = yield* verify(token);
+      // Store verified userId for handlers to use
+      setVerifiedUserId(req, payload.userId);
       return null;
     } catch {
+      // For API routes, return 401; for app routes, redirect
+      if (isApiRoute(pathname)) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
       return createRedirectResponse("/login");
     }
   });
@@ -90,7 +113,9 @@ export const requireAuthForAssets: Middleware = (req) =>
     }
 
     try {
-      yield* verify(token);
+      const payload = yield* verify(token);
+      // Store verified userId for handlers to use (though assets don't need it)
+      setVerifiedUserId(req, payload.userId);
       return null;
     } catch {
       return createRedirectResponse("/login");
