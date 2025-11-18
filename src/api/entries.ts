@@ -1,5 +1,6 @@
 import { Effect } from "effect";
-import { deleteEntry, getEntries, updateEntry } from "~/lib/redis.ts";
+import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import { deleteEntry, getEntries, updateEntry } from "~/lib/redis-scoped.ts";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -63,12 +64,29 @@ const createEntryUpdatedMessage = (entry: Entry): WebSocketMessage => ({
   data: { entry },
 });
 
-export const handleEntriesGet = async () =>
-  Response.json(await Effect.runPromise(getEntries()));
+export const handleEntriesGet = (req: Request) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const userId = yield* getVerifiedUserId(req);
+      const entries = yield* getEntries(userId);
+      return Response.json(entries);
+    })
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to get entries",
+      },
+      { status: 500 }
+    );
+  });
 
 export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
+      const userId = yield* getVerifiedUserId(req);
       const body = yield* parseEntryUpdateBody(req);
 
       const validationError = validateEntryDates(body.startedAt, body.endedAt);
@@ -77,6 +95,7 @@ export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
       }
 
       const entry = yield* updateEntry(
+        userId,
         id,
         body.startedAt,
         body.endedAt,
@@ -84,39 +103,46 @@ export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
       );
 
       const message = createEntryUpdatedMessage(entry);
-      server.publish("timer:updates", JSON.stringify(message));
+      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
 
       return Response.json(entry);
     })
-  ).catch((error) =>
-    Response.json(
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
       {
         error:
           error instanceof Error ? error.message : "Failed to update entry",
       },
       { status: 500 }
-    )
-  );
+    );
+  });
 
-export const handleEntryDelete = (id: string, server: Server) =>
+export const handleEntryDelete = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
-      yield* deleteEntry(id);
+      const userId = yield* getVerifiedUserId(req);
+      yield* deleteEntry(userId, id);
 
       const message: WebSocketMessage = {
         type: "entry:deleted",
         data: { id },
       };
-      server.publish("timer:updates", JSON.stringify(message));
+      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
 
       return Response.json({ success: true });
     })
-  ).catch((error) =>
-    Response.json(
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
       {
         error:
           error instanceof Error ? error.message : "Failed to delete entry",
       },
       { status: 500 }
-    )
-  );
+    );
+  });

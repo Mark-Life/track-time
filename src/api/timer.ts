@@ -1,5 +1,6 @@
 import { Effect } from "effect";
-import { getActiveTimer, startTimer, stopTimer } from "~/lib/redis.ts";
+import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import { getActiveTimer, startTimer, stopTimer } from "~/lib/redis-scoped.ts";
 import type { WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -41,12 +42,29 @@ const createTimerStartedMessage = (timer: {
   },
 });
 
-export const handleTimerGet = async () =>
-  Response.json(await Effect.runPromise(getActiveTimer()));
+export const handleTimerGet = (req: Request) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const userId = yield* getVerifiedUserId(req);
+      const timer = yield* getActiveTimer(userId);
+      return Response.json(timer);
+    })
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to get timer",
+      },
+      { status: 500 }
+    );
+  });
 
 export const handleTimerStart = (req: Request, server: Server) =>
   Effect.runPromise(
     Effect.gen(function* () {
+      const userId = yield* getVerifiedUserId(req);
       const body = yield* parseTimerStartBody(req);
 
       if (body?.startedAt) {
@@ -56,33 +74,51 @@ export const handleTimerStart = (req: Request, server: Server) =>
         }
       }
 
-      const timer = yield* startTimer(body?.startedAt, body?.projectId);
+      const timer = yield* startTimer(userId, body?.startedAt, body?.projectId);
 
       const message = createTimerStartedMessage(timer);
-      server.publish("timer:updates", JSON.stringify(message));
+      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
 
       return Response.json(timer);
     })
-  ).catch((error) =>
-    Response.json(
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
       {
         error: error instanceof Error ? error.message : "Failed to start timer",
       },
       { status: 500 }
-    )
-  );
+    );
+  });
 
-export const handleTimerStop = async (server: Server) => {
-  const entry = await Effect.runPromise(stopTimer());
-  if (!entry) {
-    return Response.json({ error: "No active timer" }, { status: 400 });
-  }
+export const handleTimerStop = (req: Request, server: Server) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const userId = yield* getVerifiedUserId(req);
+      const entry = yield* stopTimer(userId);
 
-  const message: WebSocketMessage = {
-    type: "timer:stopped",
-    data: { entry },
-  };
-  server.publish("timer:updates", JSON.stringify(message));
+      if (!entry) {
+        return Response.json({ error: "No active timer" }, { status: 400 });
+      }
 
-  return Response.json(entry);
-};
+      const message: WebSocketMessage = {
+        type: "timer:stopped",
+        data: { entry },
+      };
+      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
+
+      return Response.json(entry);
+    })
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to stop timer",
+      },
+      { status: 500 }
+    );
+  });

@@ -121,6 +121,11 @@ html {
     );
     --sidebar-ring: oklch(62.32% 0.1879 259.8);
   }
+
+  input::placeholder {
+    font-size: 0.875rem;
+    color: var(--color-muted-foreground);
+  }
 }
 
 @layer components {

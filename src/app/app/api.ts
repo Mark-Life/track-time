@@ -10,6 +10,12 @@ import {
 } from "~/lib/local-storage.ts";
 import type { Entry, Project, Timer } from "~/lib/types.ts";
 
+const handleAuthError = (response: Response): void => {
+  if (response.status === 401) {
+    window.location.href = "/login";
+  }
+};
+
 export const getTimer = Effect.gen(function* () {
   if (!navigator.onLine) {
     const localTimer = yield* getTimerFromLocal();
@@ -17,11 +23,12 @@ export const getTimer = Effect.gen(function* () {
   }
 
   const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/timer"),
+    try: () => fetch("/api/timer", { credentials: "include" }),
     catch: (error) => new Error(`Failed to fetch timer: ${error}`),
   });
 
   if (!response.ok) {
+    handleAuthError(response);
     const localTimer = yield* getTimerFromLocal();
     return localTimer;
   }
@@ -52,6 +59,7 @@ export const startTimer = (startedAt?: string, projectId?: string) =>
         fetch("/api/timer/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             startedAt: timerStartedAt,
             ...(projectId ? { projectId } : {}),
@@ -64,6 +72,7 @@ export const startTimer = (startedAt?: string, projectId?: string) =>
     });
 
     if (!response.ok) {
+      handleAuthError(response);
       yield* saveTimerToLocal(timer);
       return timer;
     }
@@ -115,7 +124,8 @@ export const stopTimer = Effect.gen(function* () {
   }
 
   const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/timer/stop", { method: "POST" }),
+    try: () =>
+      fetch("/api/timer/stop", { method: "POST", credentials: "include" }),
     catch: (error) => {
       Effect.runSync(saveEntryToLocal(entry));
       Effect.runSync(clearLocalTimer());
@@ -124,6 +134,7 @@ export const stopTimer = Effect.gen(function* () {
   });
 
   if (!response.ok) {
+    handleAuthError(response);
     yield* saveEntryToLocal(entry);
     yield* clearLocalTimer();
     return entry;
@@ -150,11 +161,12 @@ export const getEntries = Effect.gen(function* () {
   }
 
   const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/entries"),
+    try: () => fetch("/api/entries", { credentials: "include" }),
     catch: (error) => new Error(`Failed to fetch entries: ${error}`),
   });
 
   if (!response.ok) {
+    handleAuthError(response);
     return localEntries;
   }
 
@@ -204,6 +216,7 @@ export const updateEntry = (
         fetch(`/api/entries/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             startedAt,
             endedAt,
@@ -217,6 +230,7 @@ export const updateEntry = (
     });
 
     if (!response.ok) {
+      handleAuthError(response);
       yield* updateLocalEntry(entry);
       return entry;
     }
@@ -242,7 +256,11 @@ export const deleteEntry = (id: string) =>
     }
 
     const response = yield* Effect.tryPromise({
-      try: () => fetch(`/api/entries/${id}`, { method: "DELETE" }),
+      try: () =>
+        fetch(`/api/entries/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        }),
       catch: (error) => {
         Effect.runSync(clearSyncedEntry(id));
         return new Error(`Failed to delete entry: ${error}`);
@@ -250,6 +268,7 @@ export const deleteEntry = (id: string) =>
     });
 
     if (!response.ok) {
+      handleAuthError(response);
       yield* clearSyncedEntry(id);
       return;
     }
@@ -265,11 +284,12 @@ export const getProjects = Effect.gen(function* () {
   }
 
   const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/projects"),
+    try: () => fetch("/api/projects", { credentials: "include" }),
     catch: (error) => new Error(`Failed to fetch projects: ${error}`),
   });
 
   if (!response.ok) {
+    handleAuthError(response);
     return [];
   }
 
@@ -287,17 +307,19 @@ export const createProject = (name: string) =>
       yield* Effect.fail(new Error("Cannot create project while offline"));
     }
 
-    const response = yield* Effect.tryPromise({
+    const response: Response = yield* Effect.tryPromise({
       try: () =>
         fetch("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ name }),
         }),
       catch: (error) => new Error(`Failed to create project: ${error}`),
     });
 
     if (!response.ok) {
+      handleAuthError(response);
       const errorData = yield* Effect.tryPromise({
         try: () => response.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to create project" }),
@@ -305,7 +327,7 @@ export const createProject = (name: string) =>
       yield* Effect.fail(new Error(errorData.error));
     }
 
-    const project = yield* Effect.tryPromise({
+    const project: Project = yield* Effect.tryPromise({
       try: () => response.json() as Promise<Project>,
       catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
     });
@@ -319,17 +341,19 @@ export const updateProject = (id: string, name: string) =>
       yield* Effect.fail(new Error("Cannot update project while offline"));
     }
 
-    const response = yield* Effect.tryPromise({
+    const response: Response = yield* Effect.tryPromise({
       try: () =>
         fetch(`/api/projects/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ name }),
         }),
       catch: (error) => new Error(`Failed to update project: ${error}`),
     });
 
     if (!response.ok) {
+      handleAuthError(response);
       const errorData = yield* Effect.tryPromise({
         try: () => response.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to update project" }),
@@ -337,7 +361,7 @@ export const updateProject = (id: string, name: string) =>
       yield* Effect.fail(new Error(errorData.error));
     }
 
-    const project = yield* Effect.tryPromise({
+    const project: Project = yield* Effect.tryPromise({
       try: () => response.json() as Promise<Project>,
       catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
     });
@@ -351,15 +375,17 @@ export const deleteProject = (id: string, deleteEntries: boolean) =>
       yield* Effect.fail(new Error("Cannot delete project while offline"));
     }
 
-    const response = yield* Effect.tryPromise({
+    const response: Response = yield* Effect.tryPromise({
       try: () =>
         fetch(`/api/projects/${id}?deleteEntries=${deleteEntries}`, {
           method: "DELETE",
+          credentials: "include",
         }),
       catch: (error) => new Error(`Failed to delete project: ${error}`),
     });
 
     if (!response.ok) {
+      handleAuthError(response);
       const errorData = yield* Effect.tryPromise({
         try: () => response.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to delete project" }),
@@ -367,3 +393,52 @@ export const deleteProject = (id: string, deleteEntries: boolean) =>
       yield* Effect.fail(new Error(errorData.error));
     }
   });
+
+export const getCurrentUser = Effect.gen(function* () {
+  if (!navigator.onLine) {
+    yield* Effect.fail(new Error("Cannot get user while offline"));
+  }
+
+  const response: Response = yield* Effect.tryPromise({
+    try: () => fetch("/api/auth/me", { credentials: "include" }),
+    catch: (error) => new Error(`Failed to fetch user: ${error}`),
+  });
+
+  if (!response.ok) {
+    handleAuthError(response);
+    yield* Effect.fail(new Error("Failed to get current user"));
+  }
+
+  const data = yield* Effect.tryPromise({
+    try: () =>
+      response.json() as Promise<{
+        user: { id: string; email: string; createdAt: string };
+      }>,
+    catch: (error) => new Error(`Failed to parse user JSON: ${error}`),
+  });
+
+  return data.user;
+});
+
+export const logout = Effect.gen(function* () {
+  if (!navigator.onLine) {
+    yield* Effect.fail(new Error("Cannot logout while offline"));
+  }
+
+  const response: Response = yield* Effect.tryPromise({
+    try: () =>
+      fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      }),
+    catch: (error) => new Error(`Failed to logout: ${error}`),
+  });
+
+  if (!response.ok) {
+    handleAuthError(response);
+    yield* Effect.fail(new Error("Failed to logout"));
+  }
+
+  // Redirect to login page after successful logout
+  window.location.href = "/login";
+});

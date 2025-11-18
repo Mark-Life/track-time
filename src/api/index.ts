@@ -1,3 +1,5 @@
+import { isAuthError } from "~/lib/auth/auth.ts";
+import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.ts";
 import {
   handleEntriesGet,
   handleEntryDelete,
@@ -22,7 +24,7 @@ const handleTimerRoutes = (
   server: Server
 ): Promise<Response> | null => {
   if (url.pathname === "/api/timer" && req.method === "GET") {
-    return handleTimerGet();
+    return handleTimerGet(req);
   }
 
   if (url.pathname === "/api/timer/start" && req.method === "POST") {
@@ -30,7 +32,7 @@ const handleTimerRoutes = (
   }
 
   if (url.pathname === "/api/timer/stop" && req.method === "POST") {
-    return handleTimerStop(server);
+    return handleTimerStop(req, server);
   }
 
   return null;
@@ -42,7 +44,7 @@ const handleEntriesRoutes = (
   server: Server
 ): Promise<Response> | null => {
   if (url.pathname === "/api/entries" && req.method === "GET") {
-    return handleEntriesGet();
+    return handleEntriesGet(req);
   }
 
   const entriesMatch = url.pathname.match(ENTRIES_ID_REGEX);
@@ -53,7 +55,7 @@ const handleEntriesRoutes = (
     }
 
     if (req.method === "DELETE") {
-      return handleEntryDelete(id, server);
+      return handleEntryDelete(req, id, server);
     }
 
     if (req.method === "PUT") {
@@ -70,7 +72,7 @@ const handleProjectsRoutes = (
   server: Server
 ): Promise<Response> | null => {
   if (url.pathname === "/api/projects" && req.method === "GET") {
-    return handleProjectsGet();
+    return handleProjectsGet(req);
   }
 
   if (url.pathname === "/api/projects" && req.method === "POST") {
@@ -90,12 +92,47 @@ const handleProjectsRoutes = (
 
     if (req.method === "DELETE") {
       const deleteEntries = url.searchParams.get("deleteEntries") === "true";
-      return handleProjectDelete(id, deleteEntries, server);
+      return handleProjectDelete(req, id, deleteEntries, server);
     }
   }
 
   return null;
 };
+
+const handleAuthRoutes = (url: URL, req: Request): Promise<Response> | null => {
+  if (url.pathname === "/api/auth/register" && req.method === "POST") {
+    return handleRegister(req);
+  }
+
+  if (url.pathname === "/api/auth/login" && req.method === "POST") {
+    return handleLogin(req);
+  }
+
+  if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+    return handleLogout();
+  }
+
+  if (url.pathname === "/api/auth/me" && req.method === "GET") {
+    return handleMe(req);
+  }
+
+  return null;
+};
+
+const safePromise = (promise: Promise<Response>): Promise<Response> =>
+  promise.catch((error) => {
+    console.error("Unhandled API error:", error);
+    // Check if it's an auth error even in the safety net
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
+      {
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
+      { status: 500 }
+    );
+  });
 
 export const handleApiRequest = (
   req: Request,
@@ -103,19 +140,24 @@ export const handleApiRequest = (
 ): Promise<Response> | null => {
   const url = new URL(req.url);
 
+  const authPromise = handleAuthRoutes(url, req);
+  if (authPromise) {
+    return safePromise(authPromise);
+  }
+
   const timerPromise = handleTimerRoutes(url, req, server);
   if (timerPromise) {
-    return timerPromise;
+    return safePromise(timerPromise);
   }
 
   const entriesPromise = handleEntriesRoutes(url, req, server);
   if (entriesPromise) {
-    return entriesPromise;
+    return safePromise(entriesPromise);
   }
 
   const projectsPromise = handleProjectsRoutes(url, req, server);
   if (projectsPromise) {
-    return projectsPromise;
+    return safePromise(projectsPromise);
   }
 
   return null;

@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "time-space",
@@ -10,6 +9,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "latest",
+        "@effect/language-service": "^0.55.2",
         "@types/bun": "latest",
         "tailwindcss": "latest",
         "ultracite": "latest",
@@ -41,6 +41,8 @@
     "@clack/core": ["@clack/core@0.5.0", "", { "dependencies": { "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-p3y0FIOwaYRUPRcMO7+dlmLh8PSRcrjuTndsiA0WAFbWES0mLZlrjVoBRZ9DzkPFJZG6KGkJmoEAY0ZcVWTkow=="],
 
     "@clack/prompts": ["@clack/prompts@0.11.0", "", { "dependencies": { "@clack/core": "0.5.0", "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw=="],
+
+    "@effect/language-service": ["@effect/language-service@0.55.2", "", { "bin": { "effect-language-service": "cli.js" } }, "sha512-qagsdSuwwfyPw4Ns98c7YtkVS1gnYLtYIBVcwgAy29o2iVuC2h+u1GKVmD5zC9FvSWz3rAwbdVxij4cglrQBhw=="],
 
     "@isaacs/balanced-match": ["@isaacs/balanced-match@4.0.1", "", {}, "sha512-yzMTt9lEb8Gv7zRioUilSglI0c0smZ9k5D65677DLWLtWJaXIS3CqcGyUFByYKlnUj6TkjLVs54fBl6+TiGQDQ=="],
 
