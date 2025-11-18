@@ -6,6 +6,7 @@ import {
   setComboboxValue,
   updateComboboxOptions,
 } from "~/components/ui/combobox.ts";
+import { initializeDrawer } from "~/components/ui/drawer.ts";
 import { getTimerFromLocal } from "~/lib/local-storage.ts";
 import type { Project, Timer, WebSocketMessage } from "~/lib/types.ts";
 import {
@@ -210,9 +211,7 @@ const loadEntriesForTimerPage = Effect.gen(function* () {
 // Load and display user email
 const loadUserEmail = Effect.gen(function* () {
   const userEmailElement = document.getElementById("user-email");
-  if (!userEmailElement) {
-    return;
-  }
+  const drawerUserEmailElement = document.getElementById("drawer-user-email");
 
   const user = yield* Effect.catchAll(getCurrentUser, (error) =>
     Effect.gen(function* () {
@@ -222,22 +221,21 @@ const loadUserEmail = Effect.gen(function* () {
   );
 
   if (user) {
-    userEmailElement.textContent = user.email;
+    if (userEmailElement) {
+      userEmailElement.textContent = user.email;
+    }
+    if (drawerUserEmailElement) {
+      drawerUserEmailElement.textContent = user.email;
+    }
   }
 });
 
 // Setup logout button (shared between timer and projects pages)
 const setupLogout = () => {
   const logoutBtn = document.getElementById("logout-btn");
-  if (!logoutBtn) {
-    return;
-  }
+  const drawerLogoutBtn = document.getElementById("drawer-logout-btn");
 
-  // Remove existing listeners by cloning and replacing
-  const newLogoutBtn = logoutBtn.cloneNode(true) as HTMLButtonElement;
-  logoutBtn.parentNode?.replaceChild(newLogoutBtn, logoutBtn);
-
-  newLogoutBtn.addEventListener("click", () => {
+  const handleLogout = () => {
     Effect.runPromise(
       Effect.catchAll(logout, (error) =>
         Effect.gen(function* () {
@@ -247,11 +245,33 @@ const setupLogout = () => {
         })
       )
     );
-  });
+  };
+
+  if (logoutBtn) {
+    // Remove existing listeners by cloning and replacing
+    const newLogoutBtn = logoutBtn.cloneNode(true) as HTMLButtonElement;
+    logoutBtn.parentNode?.replaceChild(newLogoutBtn, logoutBtn);
+    newLogoutBtn.addEventListener("click", handleLogout);
+  }
+
+  if (drawerLogoutBtn) {
+    // Remove existing listeners by cloning and replacing
+    const newDrawerLogoutBtn = drawerLogoutBtn.cloneNode(
+      true
+    ) as HTMLButtonElement;
+    drawerLogoutBtn.parentNode?.replaceChild(
+      newDrawerLogoutBtn,
+      drawerLogoutBtn
+    );
+    newDrawerLogoutBtn.addEventListener("click", handleLogout);
+  }
 };
 
 // Main app initialization
 const initializeApp = Effect.gen(function* () {
+  // Initialize drawer
+  yield* initializeDrawer();
+
   // Load user email first
   yield* loadUserEmail;
 

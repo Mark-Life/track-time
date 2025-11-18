@@ -83,6 +83,7 @@ toggleRegister.addEventListener("click", () => {
   if (isRegisterMode) {
     submitBtn.textContent = "Sign Up";
     toggleRegister.textContent = "Sign in";
+    passwordInput.autocomplete = "new-password";
     const heading = document.querySelector("h1");
     if (heading) {
       heading.textContent = "Create Account";
@@ -94,6 +95,7 @@ toggleRegister.addEventListener("click", () => {
   } else {
     submitBtn.textContent = "Sign In";
     toggleRegister.textContent = "Sign up";
+    passwordInput.autocomplete = "current-password";
     const heading = document.querySelector("h1");
     if (heading) {
       heading.textContent = "Time Tracker";

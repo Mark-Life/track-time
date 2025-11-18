@@ -10,7 +10,31 @@
   <body class="min-h-screen bg-background text-foreground p-4">
     <div class="max-w-4xl mx-auto">
       <div class="relative flex justify-between items-center mb-4">
-        <nav class="flex gap-4">
+        <!-- Mobile menu button -->
+        <button
+          id="mobile-menu-btn"
+          class="md:hidden p-2 text-foreground hover:text-primary transition"
+          aria-label="Open menu"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 12h18" />
+            <path d="M3 6h18" />
+            <path d="M3 18h18" />
+          </svg>
+        </button>
+
+        <!-- Desktop navigation -->
+        <nav class="hidden md:flex gap-4">
           <a
             href="/app"
             class="nav-link text-sm hover:text-primary transition"
@@ -24,20 +48,89 @@
             >Projects</a
           >
         </nav>
+
         <h1
-          class="absolute left-1/2 -translate-x-1/2 text-2xl font-bold text-primary"
+          class="absolute left-1/2 -translate-x-1/2 text-xl md:text-2xl font-bold text-primary"
         >
           Time Tracker
         </h1>
-        <div class="flex items-center gap-4">
+
+        <!-- Desktop user info and logout -->
+        <div class="hidden md:flex items-center gap-4">
           <span id="user-email" class="text-sm text-muted-foreground"></span>
           <button
             id="logout-btn"
-            class="text-sm text-muted-foreground hover:text-primary transition px-2 py-1 rounded hover:bg-muted"
+            class="text-sm bg-destructive text-destructive-foreground hover:bg-destructive/80 transition px-2 py-1 rounded w-fit"
             aria-label="Logout"
           >
             Logout
           </button>
+        </div>
+      </div>
+
+      <!-- Mobile Drawer -->
+      <div
+        id="drawer-overlay"
+        class="hidden fixed inset-0 z-40 md:hidden"
+        style="background-color: rgba(0, 0, 0, 0.4)"
+      ></div>
+      <div
+        id="mobile-drawer"
+        class="fixed top-0 left-0 h-full w-64 bg-background border-r border-border z-50 transform translate-x-[-100%] transition-transform duration-300 ease-in-out md:hidden"
+      >
+        <div class="flex flex-col h-full">
+          <div
+            class="flex justify-between items-center p-4 border-b border-border"
+          >
+            <h2 class="text-lg font-bold text-primary">Menu</h2>
+            <button
+              id="drawer-close-btn"
+              class="p-2 text-foreground hover:text-primary transition"
+              aria-label="Close menu"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M18 6L6 18" />
+                <path d="M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <nav class="flex flex-col p-4 gap-2 flex-1">
+            <a
+              href="/app"
+              class="drawer-nav-link nav-link text-sm hover:text-primary transition py-2 px-3 rounded hover:bg-muted"
+              data-route="/app"
+              >Timer</a
+            >
+            <a
+              href="/app/projects"
+              class="drawer-nav-link nav-link text-sm hover:text-primary transition py-2 px-3 rounded hover:bg-muted"
+              data-route="/app/projects"
+              >Projects</a
+            >
+          </nav>
+          <div class="border-t border-border p-4 flex flex-col gap-2">
+            <span
+              id="drawer-user-email"
+              class="text-sm text-muted-foreground"
+            ></span>
+            <button
+              id="drawer-logout-btn"
+              class="text-sm bg-destructive text-destructive-foreground hover:bg-destructive/80 transition px-2 py-1 rounded text-left w-fit"
+              aria-label="Logout"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
