@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import {
   APP_PATH_REGEX,
   APP_TILDE_PATH_REGEX,
@@ -6,14 +7,19 @@ import {
 } from "./utils.ts";
 import { trackDependencies } from "./watcher.ts";
 
-// Resolve to src/ directory (parent of server/)
-const SRC_DIR = `${import.meta.dir}/..`;
+// Resolve to src/ directory
+// In development: import.meta.dir ends with /server or /server/, so go up one level
+// In production (bundled): import.meta.dir is dist/src/, so use it directly
+const SRC_DIR =
+  import.meta.dir.includes("/server") || import.meta.dir.endsWith("server")
+    ? join(import.meta.dir, "..")
+    : import.meta.dir;
 
 const bundleTailwindCSS = async (): Promise<Response> => {
   try {
     // Create a temporary CSS file that imports tailwindcss
-    const tempDir = `${SRC_DIR}/.tmp`;
-    const tempCssPath = `${tempDir}/tailwind-temp.css`;
+    const tempDir = join(SRC_DIR, ".tmp");
+    const tempCssPath = join(tempDir, "tailwind-temp.css");
     await Bun.write(tempCssPath, `@import "tailwindcss";`);
 
     // Use Bun's bundler with tailwind plugin
@@ -50,14 +56,16 @@ const bundleTailwindCSS = async (): Promise<Response> => {
 
 const bundleCSSFile = async (cssPath: string): Promise<Response | null> => {
   try {
-    // Track dependencies for HMR
-    await trackDependencies(cssPath);
-    
+    // Track dependencies for HMR (development only)
+    if (process.env.NODE_ENV !== "production") {
+      await trackDependencies(cssPath);
+    }
+
     const tailwindPlugin = await import("bun-plugin-tailwind");
     const bundled = await Bun.build({
       entrypoints: [cssPath],
       plugins: [tailwindPlugin.default || tailwindPlugin],
-      outdir: `${SRC_DIR}/.tmp`,
+      outdir: join(SRC_DIR, ".tmp"),
       target: "bun",
     });
 
@@ -88,7 +96,7 @@ const handleTildePath = async (pathname: string): Promise<Response | null> => {
   const filePath = pathname
     .replace(APP_TILDE_PATH_REGEX, "")
     .replace(TILDE_PATH_REGEX, "");
-  const resolvedPath = `${SRC_DIR}/${filePath}`;
+  const resolvedPath = join(SRC_DIR, filePath);
   const file = Bun.file(resolvedPath);
 
   if (!(await file.exists())) {
@@ -115,12 +123,14 @@ const handleTildePath = async (pathname: string): Promise<Response | null> => {
 
 const bundleTSFile = async (tsPath: string): Promise<Response | null> => {
   try {
-    // Track dependencies for HMR
-    await trackDependencies(tsPath);
-    
+    // Track dependencies for HMR (development only)
+    if (process.env.NODE_ENV !== "production") {
+      await trackDependencies(tsPath);
+    }
+
     const bundled = await Bun.build({
       entrypoints: [tsPath],
-      outdir: `${SRC_DIR}/.tmp`,
+      outdir: join(SRC_DIR, ".tmp"),
       target: "browser",
       format: "esm",
       sourcemap: "inline",
@@ -154,12 +164,12 @@ const handleTSJSFiles = async (pathname: string): Promise<Response | null> => {
   // Try /app/app.ts first (if path starts with /app/)
   if (APP_PATH_REGEX.test(pathname)) {
     const filePath = pathname.replace(APP_PATH_REGEX, "");
-    resolvedPath = `${SRC_DIR}/app/app/${filePath}`;
+    resolvedPath = join(SRC_DIR, "app", "app", filePath);
   } else {
     // Try /app.ts (root level - likely from HTML served at /app)
     const fileName = pathname.replace(LEADING_SLASH_REGEX, "");
     if (fileName === "app.ts" || fileName === "app.js") {
-      resolvedPath = `${SRC_DIR}/app/app/app.ts`;
+      resolvedPath = join(SRC_DIR, "app", "app", "app.ts");
     }
   }
 
@@ -189,7 +199,9 @@ const handleTSJSFiles = async (pathname: string): Promise<Response | null> => {
   });
 };
 
-export const handleAssets = async (pathname: string): Promise<Response | null> => {
+export const handleAssets = async (
+  pathname: string
+): Promise<Response | null> => {
   // Handle tailwindcss - use Bun's bundler to process it
   // Handle both /tailwindcss and /~/tailwindcss (for CSS imports)
   if (
@@ -214,4 +226,3 @@ export const handleAssets = async (pathname: string): Promise<Response | null> =
 
   return null;
 };
-

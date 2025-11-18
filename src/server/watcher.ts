@@ -2,8 +2,13 @@ import { watch } from "node:fs";
 import { join, relative } from "node:path";
 import type { Server } from "./types.ts";
 
-// Resolve to src/ directory (parent of server/)
-const SRC_DIR = `${import.meta.dir}/..`;
+// Resolve to src/ directory
+// In development: import.meta.dir ends with /server or /server/, so go up one level
+// In production (bundled): import.meta.dir is dist/src/, so use it directly
+const SRC_DIR =
+  import.meta.dir.includes("/server") || import.meta.dir.endsWith("server")
+    ? join(import.meta.dir, "..")
+    : import.meta.dir;
 
 // Track watched files and their dependencies
 const watchedFiles = new Set<string>();
@@ -21,17 +26,17 @@ export const setServerInstance = (server: Server) => {
 const getFilesToWatch = (): string[] => {
   const files: string[] = [
     // HTML files
-    `${SRC_DIR}/app/app/index.html`,
-    `${SRC_DIR}/app/index.html`,
-    `${SRC_DIR}/app/login/login.html`,
+    join(SRC_DIR, "app", "app", "index.html"),
+    join(SRC_DIR, "app", "index.html"),
+    join(SRC_DIR, "app", "login", "login.html"),
     // Main TypeScript entry point
-    `${SRC_DIR}/app/app/app.ts`,
+    join(SRC_DIR, "app", "app", "app.ts"),
     // CSS files
-    `${SRC_DIR}/global.css`,
+    join(SRC_DIR, "global.css"),
     // Common directories to watch
-    `${SRC_DIR}/app/app`,
-    `${SRC_DIR}/components`,
-    `${SRC_DIR}/lib`,
+    join(SRC_DIR, "app", "app"),
+    join(SRC_DIR, "components"),
+    join(SRC_DIR, "lib"),
   ];
   return files;
 };
@@ -192,6 +197,14 @@ const watchDirectory = (dirPath: string) => {
 
 // Track dependencies when bundling a file
 export const trackDependencies = async (filePath: string) => {
+  // Don't track dependencies in production
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    process.env["BUN_ENV"] === "production";
+  if (isProduction) {
+    return; // Skip dependency tracking in production
+  }
+
   const deps = await extractDependencies(filePath);
   fileDependencies.set(filePath, new Set(deps));
 
@@ -207,10 +220,20 @@ export const trackDependencies = async (filePath: string) => {
 
 // Initialize file watching
 export const initializeWatcher = () => {
-  if (process.env.NODE_ENV === "production") {
-    return; // Don't watch in production
+  // Don't watch in production - check both NODE_ENV and explicit production flag
+  // Also check if we're running from dist/ directory (production build)
+  const nodeEnv = process.env.NODE_ENV;
+  const bunEnv = process.env["BUN_ENV"];
+  const isDistBuild = import.meta.dir.includes("/dist/");
+  const isProduction =
+    nodeEnv === "production" || bunEnv === "production" || isDistBuild;
+
+  if (isProduction) {
+    // Silently skip watcher initialization in production
+    return;
   }
 
+  // Only proceed if we're in development
   const filesToWatch = getFilesToWatch();
 
   for (const filePath of filesToWatch) {

@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "bun run --bun src/index.ts",
     "build": "bun run --bun build.ts",
-    "start": "cd dist && NODE_ENV=production bun run --bun --env-file=../.env index.js",
+    "start": "cd dist && NODE_ENV=production bun run --bun --env-file=../.env src/index.js",
     "check": "bunx run --bun ultracite check",
     "fix": "bun run --bun ultracite fix"
   },

@@ -113,8 +113,16 @@ const createServer = Effect.gen(function* () {
   // Set server instance for HMR updates
   setServerInstance(serverInstance);
 
-  // Initialize file watcher for HMR
-  if (process.env.NODE_ENV !== "production") {
+  // Initialize file watcher for HMR (development only)
+  // Double-check to ensure watcher doesn't run in production
+  // Check NODE_ENV, BUN_ENV, and if we're running from dist/ (production build)
+  const nodeEnv = process.env.NODE_ENV;
+  const bunEnv = process.env["BUN_ENV"];
+  const isDistBuild = import.meta.dir.includes("/dist/");
+  const isProduction =
+    nodeEnv === "production" || bunEnv === "production" || isDistBuild;
+
+  if (!isProduction) {
     initializeWatcher();
   }
 

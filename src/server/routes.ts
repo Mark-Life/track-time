@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { Effect } from "effect";
 import { handleApiRequest } from "../api/index.ts";
 import { extractToken } from "../lib/auth/auth.ts";
@@ -63,9 +64,15 @@ export const handleAppRoutes = async (
     return null;
   }
 
-  // Resolve to src/ directory (parent of server/)
-  const SRC_DIR = `${import.meta.dir}/..`;
-  const appHtmlFile = Bun.file(`${SRC_DIR}/app/app/index.html`);
+  // Resolve to src/ directory
+  // In development: import.meta.dir ends with /server or /server/, so go up one level
+  // In production (bundled): import.meta.dir is dist/src/, so use it directly
+  const SRC_DIR =
+    import.meta.dir.includes("/server") || import.meta.dir.endsWith("server")
+      ? join(import.meta.dir, "..")
+      : import.meta.dir;
+  const appHtmlPath = join(SRC_DIR, "app", "app", "index.html");
+  const appHtmlFile = Bun.file(appHtmlPath);
   let appHtml = await appHtmlFile.text();
 
   // Inject HMR client code in development
