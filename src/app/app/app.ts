@@ -11,9 +11,11 @@ import type { Project, Timer, WebSocketMessage } from "~/lib/types.ts";
 import {
   createProject,
   deleteEntry,
+  getCurrentUser,
   getEntries,
   getProjects,
   getTimer,
+  logout,
   startTimer,
   stopTimer,
   updateEntry,
@@ -205,8 +207,57 @@ const loadEntriesForTimerPage = Effect.gen(function* () {
   yield* renderEntries(entries, currentProjects);
 });
 
+// Load and display user email
+const loadUserEmail = Effect.gen(function* () {
+  const userEmailElement = document.getElementById("user-email");
+  if (!userEmailElement) {
+    return;
+  }
+
+  const user = yield* Effect.catchAll(getCurrentUser, (error) =>
+    Effect.gen(function* () {
+      yield* Effect.log(`Failed to load user email: ${error}`);
+      return null;
+    })
+  );
+
+  if (user) {
+    userEmailElement.textContent = user.email;
+  }
+});
+
+// Setup logout button (shared between timer and projects pages)
+const setupLogout = () => {
+  const logoutBtn = document.getElementById("logout-btn");
+  if (!logoutBtn) {
+    return;
+  }
+
+  // Remove existing listeners by cloning and replacing
+  const newLogoutBtn = logoutBtn.cloneNode(true) as HTMLButtonElement;
+  logoutBtn.parentNode?.replaceChild(newLogoutBtn, logoutBtn);
+
+  newLogoutBtn.addEventListener("click", () => {
+    Effect.runPromise(
+      Effect.catchAll(logout, (error) =>
+        Effect.gen(function* () {
+          yield* Effect.logError(`Failed to logout: ${error}`);
+          // Still redirect even if logout fails
+          window.location.href = "/login";
+        })
+      )
+    );
+  });
+};
+
 // Main app initialization
 const initializeApp = Effect.gen(function* () {
+  // Load user email first
+  yield* loadUserEmail;
+
+  // Setup logout button
+  setupLogout();
+
   // Use existing refs if already initialized, otherwise create new ones
   let timerRef: Ref.Ref<Timer | null>;
   let intervalRef: Ref.Ref<number | null>;

@@ -14,6 +14,9 @@
       },
       "style": {
         "noMagicNumbers": "off"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
       }
     }
   }

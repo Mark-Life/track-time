@@ -26,3 +26,28 @@ export type WebSocketMessage =
   | { type: "project:created"; data: { project: Project } }
   | { type: "project:updated"; data: { project: Project } }
   | { type: "project:deleted"; data: { id: string } };
+
+export type User = {
+  id: string;
+  email: string;
+  createdAt: string;
+};
+
+export type JWTPayload = {
+  userId: string;
+  email: string;
+  iat: number;
+  exp: number;
+};
+
+export type JWTHeader = {
+  alg: "HS256";
+  typ: "JWT";
+};
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}

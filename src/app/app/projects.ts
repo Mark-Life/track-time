@@ -291,8 +291,37 @@ const handleProjectContainerClick = (event: MouseEvent) => {
   }
 };
 
+// Setup logout button (shared between timer and projects pages)
+const setupLogoutButton = () => {
+  const logoutBtn = document.getElementById("logout-btn");
+  if (!logoutBtn) {
+    return;
+  }
+
+  // Remove existing listeners by cloning and replacing
+  const newLogoutBtn = logoutBtn.cloneNode(true) as HTMLButtonElement;
+  logoutBtn.parentNode?.replaceChild(newLogoutBtn, logoutBtn);
+
+  newLogoutBtn.addEventListener("click", () => {
+    import("./api.ts").then(({ logout }) => {
+      Effect.runPromise(
+        Effect.catchAll(logout, (error) =>
+          Effect.gen(function* () {
+            yield* Effect.logError(`Failed to logout: ${error}`);
+            // Still redirect even if logout fails
+            window.location.href = "/login";
+          })
+        )
+      );
+    });
+  });
+};
+
 export const initializeProjectsPage = Effect.gen(function* () {
   deleteProjectIdRef = yield* Ref.make<string | null>(null);
+
+  // Setup logout button
+  setupLogoutButton();
 
   // Load projects
   const loadProjects = Effect.gen(function* () {
