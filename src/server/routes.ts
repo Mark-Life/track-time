@@ -66,13 +66,101 @@ export const handleAppRoutes = async (
   // Resolve to src/ directory (parent of server/)
   const SRC_DIR = `${import.meta.dir}/..`;
   const appHtmlFile = Bun.file(`${SRC_DIR}/app/app/index.html`);
-  const appHtml = await appHtmlFile.text();
+  let appHtml = await appHtmlFile.text();
+
+  // Inject HMR client code in development
+  if (process.env.NODE_ENV !== "production") {
+    const hmrScript = `
+    <script>
+      (function() {
+        if (typeof window === 'undefined') return;
+        
+        let ws;
+        let reconnectTimeout;
+        
+        const connectHMR = () => {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          ws = new WebSocket(protocol + '//' + window.location.host + '/hmr');
+          
+          ws.onopen = () => {
+            console.log('[HMR] Connected');
+            if (reconnectTimeout) {
+              clearTimeout(reconnectTimeout);
+              reconnectTimeout = null;
+            }
+          };
+          
+          ws.onmessage = (event) => {
+            try {
+              const message = JSON.parse(event.data);
+              if (message.type === 'hmr-update') {
+                console.log('[HMR] File changed:', message.file);
+                
+                // Reload CSS files
+                if (message.file.endsWith('.css')) {
+                  const links = document.querySelectorAll('link[rel="stylesheet"]');
+                  links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href) {
+                      const newHref = href.split('?')[0] + '?t=' + Date.now();
+                      link.setAttribute('href', newHref);
+                    }
+                  });
+                } else {
+                  // Reload page for JS/TS/HTML changes
+                  window.location.reload();
+                }
+              }
+            } catch (e) {
+              // Ignore non-JSON messages
+            }
+          };
+          
+          ws.onerror = (error) => {
+            console.error('[HMR] WebSocket error:', error);
+          };
+          
+          ws.onclose = () => {
+            console.log('[HMR] Disconnected, reconnecting...');
+            // Reconnect after 1 second
+            reconnectTimeout = setTimeout(() => {
+              connectHMR();
+            }, 1000);
+          };
+        };
+        
+        connectHMR();
+      })();
+    </script>`;
+
+    // Inject before closing </body> tag
+    appHtml = appHtml.replace("</body>", `${hmrScript}</body>`);
+  }
 
   return new Response(appHtml, {
     headers: {
       "Content-Type": "text/html",
     },
   });
+};
+
+export const handleHMRWebSocketUpgrade = (
+  req: Request,
+  srv: Server
+): Response => {
+  // HMR WebSocket doesn't require auth (development only)
+  if (process.env.NODE_ENV === "production") {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  const upgraded = srv.upgrade(req, {
+    data: { userId: "hmr" } as WebSocketData,
+  });
+
+  if (upgraded) {
+    return new Response("HMR WebSocket upgraded", { status: 200 });
+  }
+  return new Response("HMR WebSocket upgrade failed", { status: 400 });
 };
 
 export const handleWebSocketUpgrade = async (

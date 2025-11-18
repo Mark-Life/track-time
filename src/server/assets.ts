@@ -4,6 +4,7 @@ import {
   LEADING_SLASH_REGEX,
   TILDE_PATH_REGEX,
 } from "./utils.ts";
+import { trackDependencies } from "./watcher.ts";
 
 // Resolve to src/ directory (parent of server/)
 const SRC_DIR = `${import.meta.dir}/..`;
@@ -49,6 +50,9 @@ const bundleTailwindCSS = async (): Promise<Response> => {
 
 const bundleCSSFile = async (cssPath: string): Promise<Response | null> => {
   try {
+    // Track dependencies for HMR
+    await trackDependencies(cssPath);
+    
     const tailwindPlugin = await import("bun-plugin-tailwind");
     const bundled = await Bun.build({
       entrypoints: [cssPath],
@@ -111,6 +115,9 @@ const handleTildePath = async (pathname: string): Promise<Response | null> => {
 
 const bundleTSFile = async (tsPath: string): Promise<Response | null> => {
   try {
+    // Track dependencies for HMR
+    await trackDependencies(tsPath);
+    
     const bundled = await Bun.build({
       entrypoints: [tsPath],
       outdir: `${SRC_DIR}/.tmp`,

@@ -1,6 +1,6 @@
 import { Effect, Ref } from "effect";
 import { clearLocalTimer, getTimerFromLocal } from "~/lib/local-storage.ts";
-import type { Project, Timer } from "~/lib/types.ts";
+import type { Timer } from "~/lib/types.ts";
 import { getEntries, getProjects, getTimer, startTimer } from "./api.ts";
 import { renderEntries } from "./dom.ts";
 import { startTimerUI } from "./timer-ui.ts";

@@ -7,10 +7,16 @@ import { handleAssets } from "./assets.ts";
 import {
   handleApiRoutes,
   handleAppRoutes,
+  handleHMRWebSocketUpgrade,
   handleWebSocketUpgrade,
   runAuthMiddleware,
 } from "./routes.ts";
 import type { Server, WebSocketData } from "./types.ts";
+import {
+  cleanupWatcher,
+  initializeWatcher,
+  setServerInstance,
+} from "./watcher.ts";
 
 const createServer = Effect.gen(function* () {
   const createServerConfig = () => ({
@@ -25,6 +31,11 @@ const createServer = Effect.gen(function* () {
     async fetch(req: Request, srv: Server) {
       const url = new URL(req.url);
       const pathname = url.pathname;
+
+      // HMR WebSocket upgrade (development only, no auth required)
+      if (pathname === "/hmr") {
+        return handleHMRWebSocketUpgrade(req, srv);
+      }
 
       // WebSocket upgrade (must be in fetch, not routes)
       if (pathname === "/ws") {
@@ -68,7 +79,13 @@ const createServer = Effect.gen(function* () {
       open(ws: ServerWebSocket<WebSocketData>) {
         const userId = ws.data?.userId;
         console.log("WebSocket opened for user:", userId);
-        if (userId) {
+
+        if (userId === "hmr") {
+          // HMR WebSocket - subscribe to HMR channel
+          ws.subscribe("hmr");
+          console.log("HMR WebSocket connected");
+        } else if (userId) {
+          // Regular WebSocket - subscribe to user-specific channels
           ws.subscribe(`user:${userId}:timer:updates`);
         }
       },
@@ -89,11 +106,20 @@ const createServer = Effect.gen(function* () {
   const serverInstance = Bun.serve<WebSocketData>(createServerConfig());
   yield* Effect.log(`🚀 Server running at ${serverInstance.url}`);
 
+  // Set server instance for HMR updates
+  setServerInstance(serverInstance);
+
+  // Initialize file watcher for HMR
+  if (process.env.NODE_ENV !== "production") {
+    initializeWatcher();
+  }
+
   return serverInstance;
 });
 
 const serverResource = Effect.acquireRelease(createServer, (server) =>
   Effect.sync(() => {
+    cleanupWatcher();
     server.stop();
   })
 );
