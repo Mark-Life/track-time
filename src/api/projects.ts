@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getUserId, isAuthError } from "~/lib/auth.ts";
+import { getUserId, isAuthError } from "~/lib/auth/auth";
 import {
   createProject,
   deleteProject,
@@ -23,7 +23,8 @@ export const handleProjectsGet = (req: Request) =>
     }
     return Response.json(
       {
-        error: error instanceof Error ? error.message : "Failed to get projects",
+        error:
+          error instanceof Error ? error.message : "Failed to get projects",
       },
       { status: 500 }
     );

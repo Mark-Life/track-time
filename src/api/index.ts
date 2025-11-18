@@ -1,4 +1,4 @@
-import { isAuthError } from "~/lib/auth.ts";
+import { isAuthError } from "~/lib/auth/auth.ts";
 import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.ts";
 import {
   handleEntriesGet,

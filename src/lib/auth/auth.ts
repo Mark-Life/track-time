@@ -1,7 +1,7 @@
 import { Effect } from "effect";
+import type { JWTPayload } from "../types.ts";
+import { AuthError } from "../types.ts";
 import { verify } from "./jwt.ts";
-import type { JWTPayload } from "./types.ts";
-import { AuthError } from "./types.ts";
 
 const parseCookieHeader = (
   cookieHeader: string | null

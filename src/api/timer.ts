@@ -1,10 +1,6 @@
 import { Effect } from "effect";
-import { getUserId, isAuthError } from "~/lib/auth.ts";
-import {
-  getActiveTimer,
-  startTimer,
-  stopTimer,
-} from "~/lib/redis-scoped.ts";
+import { getUserId, isAuthError } from "~/lib/auth/auth";
+import { getActiveTimer, startTimer, stopTimer } from "~/lib/redis-scoped.ts";
 import type { WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -78,11 +74,7 @@ export const handleTimerStart = (req: Request, server: Server) =>
         }
       }
 
-      const timer = yield* startTimer(
-        userId,
-        body?.startedAt,
-        body?.projectId
-      );
+      const timer = yield* startTimer(userId, body?.startedAt, body?.projectId);
 
       const message = createTimerStartedMessage(timer);
       server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));

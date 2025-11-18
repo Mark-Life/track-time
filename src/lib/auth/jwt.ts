@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { JWTHeader, JWTPayload } from "./types.ts";
+import type { JWTHeader, JWTPayload } from "../types.ts";
 
 const base64UrlEncode = (str: string): string =>
   Buffer.from(str, "utf-8").toString("base64url");

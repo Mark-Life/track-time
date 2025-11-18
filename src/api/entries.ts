@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getUserId, isAuthError } from "~/lib/auth.ts";
+import { getUserId, isAuthError } from "~/lib/auth/auth";
 import { deleteEntry, getEntries, updateEntry } from "~/lib/redis-scoped.ts";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 

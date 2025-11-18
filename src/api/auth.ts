@@ -7,8 +7,8 @@ import {
   isAuthError,
   requireAuth,
   setAuthCookie,
-} from "~/lib/auth.ts";
-import { sign } from "~/lib/jwt.ts";
+} from "~/lib/auth/auth";
+import { sign } from "~/lib/auth/jwt";
 import { AuthError } from "~/lib/types.ts";
 import { authenticateUser, createUser, getUserById } from "~/lib/users.ts";
 
