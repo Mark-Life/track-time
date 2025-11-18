@@ -29,6 +29,17 @@ const isPublicApiRoute = (pathname: string): boolean => {
   return publicRoutes.some((route) => pathname === route);
 };
 
+const isPublicAssetPath = (pathname: string): boolean => {
+  // Public assets that don't require auth (needed for login page)
+  if (pathname === "/tailwindcss" || pathname.startsWith("/tailwindcss")) {
+    return true;
+  }
+  if (pathname.startsWith("/~/")) {
+    return true;
+  }
+  return false;
+};
+
 const isAssetPath = (pathname: string): boolean => {
   // Check for CSS files
   if (pathname.endsWith(".css")) {
@@ -103,6 +114,12 @@ export const requireAuthForAssets: Middleware = (req) =>
 
     // Only check auth for asset paths
     if (!isAssetPath(pathname)) {
+      return null;
+    }
+
+    // Public assets (like /tailwindcss, /~/global.css) don't require auth
+    // These are needed for the login page to work
+    if (isPublicAssetPath(pathname)) {
       return null;
     }
 

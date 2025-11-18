@@ -1,5 +1,6 @@
 // Regex patterns for path matching (defined at top level for performance)
 export const APP_TILDE_PATH_REGEX = /^\/app\/~/;
+export const LOGIN_TILDE_PATH_REGEX = /^\/login\/~/;
 export const TILDE_PATH_REGEX = /^\/~/;
 export const APP_PATH_REGEX = /^\/app\//;
 export const LEADING_SLASH_REGEX = /^\//;

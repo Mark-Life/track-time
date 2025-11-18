@@ -3,6 +3,7 @@ import {
   APP_PATH_REGEX,
   APP_TILDE_PATH_REGEX,
   LEADING_SLASH_REGEX,
+  LOGIN_TILDE_PATH_REGEX,
   TILDE_PATH_REGEX,
 } from "./utils.ts";
 import { trackDependencies } from "./watcher.ts";
@@ -88,13 +89,16 @@ const bundleCSSFile = async (cssPath: string): Promise<Response | null> => {
 
 const handleTildePath = async (pathname: string): Promise<Response | null> => {
   const isTildePath =
-    APP_TILDE_PATH_REGEX.test(pathname) || TILDE_PATH_REGEX.test(pathname);
+    APP_TILDE_PATH_REGEX.test(pathname) ||
+    LOGIN_TILDE_PATH_REGEX.test(pathname) ||
+    TILDE_PATH_REGEX.test(pathname);
   if (!isTildePath) {
     return null;
   }
 
   const filePath = pathname
     .replace(APP_TILDE_PATH_REGEX, "")
+    .replace(LOGIN_TILDE_PATH_REGEX, "")
     .replace(TILDE_PATH_REGEX, "");
   const resolvedPath = join(SRC_DIR, filePath);
   const file = Bun.file(resolvedPath);
@@ -170,6 +174,9 @@ const handleTSJSFiles = async (pathname: string): Promise<Response | null> => {
     const fileName = pathname.replace(LEADING_SLASH_REGEX, "");
     if (fileName === "app.ts" || fileName === "app.js") {
       resolvedPath = join(SRC_DIR, "app", "app", "app.ts");
+    } else if (fileName === "login.ts" || fileName === "login.js") {
+      // Handle /login.ts (from login.html served at /login)
+      resolvedPath = join(SRC_DIR, "app", "login", "login.ts");
     }
   }
 
@@ -204,15 +211,21 @@ export const handleAssets = async (
 ): Promise<Response | null> => {
   // Handle tailwindcss - use Bun's bundler to process it
   // Handle both /tailwindcss and /~/tailwindcss (for CSS imports)
+  // Also handle relative paths from /login and /app routes
   if (
     pathname === "/tailwindcss" ||
     pathname === "/app/tailwindcss" ||
-    pathname === "/~/tailwindcss"
+    pathname === "/login/tailwindcss" ||
+    pathname === "/~/tailwindcss" ||
+    pathname === "/app/~/tailwindcss" ||
+    pathname === "/login/~/tailwindcss"
   ) {
     return await bundleTailwindCSS();
   }
 
   // Handle ~/ paths (like ~/global.css)
+  // Also handle relative paths from /login and /app routes
+  // When HTML is at /login, ~/global.css resolves to /login/~/global.css
   const tildeResponse = await handleTildePath(pathname);
   if (tildeResponse) {
     return tildeResponse;
