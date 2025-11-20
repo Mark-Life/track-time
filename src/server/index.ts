@@ -2,7 +2,7 @@ import type { ServerWebSocket } from "bun";
 import { Effect } from "effect";
 import landing from "~/app/index.html";
 import login from "~/app/login/login.html";
-import { redisResource } from "../lib/redis.ts";
+import { redisResource } from "~/lib/redis";
 import { handleAssets } from "./assets.ts";
 import {
   handleApiRoutes,
@@ -94,45 +94,52 @@ const createServer = Effect.gen(function* () {
           ws.subscribe(`user:${userId}:timer:updates`);
 
           // Set up token expiration check (check every 5 minutes)
-          const checkInterval = setInterval(() => {
-            const now = Math.floor(Date.now() / 1000);
-            const timeUntilExpiry = tokenExp - now;
+          const checkInterval = setInterval(
+            () => {
+              const now = Math.floor(Date.now() / 1000);
+              const timeUntilExpiry = tokenExp - now;
 
-            // If token expires in less than 1 hour, warn client
-            if (timeUntilExpiry > 0 && timeUntilExpiry < 3600) {
-              try {
-                ws.send(
-                  JSON.stringify({
-                    type: "auth:token-expiring",
-                    data: { expiresAt: tokenExp },
-                  })
-                );
-              } catch (error) {
-                console.error("Failed to send token expiration warning:", error);
+              // If token expires in less than 1 hour, warn client
+              if (timeUntilExpiry > 0 && timeUntilExpiry < 3600) {
+                try {
+                  ws.send(
+                    JSON.stringify({
+                      type: "auth:token-expiring",
+                      data: { expiresAt: tokenExp },
+                    })
+                  );
+                } catch (error) {
+                  console.error(
+                    "Failed to send token expiration warning:",
+                    error
+                  );
+                  clearInterval(checkInterval);
+                }
+              }
+
+              // If token has expired, notify client and close connection
+              if (timeUntilExpiry <= 0) {
+                try {
+                  ws.send(
+                    JSON.stringify({
+                      type: "auth:token-expired",
+                      data: {},
+                    })
+                  );
+                  ws.close(1008, "Token expired");
+                } catch (error) {
+                  console.error("Failed to send token expired message:", error);
+                }
                 clearInterval(checkInterval);
               }
-            }
-
-            // If token has expired, notify client and close connection
-            if (timeUntilExpiry <= 0) {
-              try {
-                ws.send(
-                  JSON.stringify({
-                    type: "auth:token-expired",
-                    data: {},
-                  })
-                );
-                ws.close(1008, "Token expired");
-              } catch (error) {
-                console.error("Failed to send token expired message:", error);
-              }
-              clearInterval(checkInterval);
-            }
-          }, 5 * 60 * 1000); // Check every 5 minutes
+            },
+            5 * 60 * 1000
+          ); // Check every 5 minutes
 
           // Store interval ID for cleanup
-          (ws as unknown as { _tokenCheckInterval?: NodeJS.Timeout })
-            ._tokenCheckInterval = checkInterval;
+          (
+            ws as unknown as { _tokenCheckInterval?: NodeJS.Timeout }
+          )._tokenCheckInterval = checkInterval;
         }
       },
       message(ws: ServerWebSocket<WebSocketData>, message: string | Buffer) {
@@ -163,8 +170,9 @@ const createServer = Effect.gen(function* () {
       },
       close(ws: ServerWebSocket<WebSocketData>) {
         // Cleanup token check interval
-        const interval = (ws as unknown as { _tokenCheckInterval?: NodeJS.Timeout })
-          ._tokenCheckInterval;
+        const interval = (
+          ws as unknown as { _tokenCheckInterval?: NodeJS.Timeout }
+        )._tokenCheckInterval;
         if (interval) {
           clearInterval(interval);
         }
