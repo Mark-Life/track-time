@@ -36,6 +36,7 @@ import {
   playPauseBtn,
   projectInputContainer,
   projectNameInput,
+  projectSubmitBtn,
 } from "./dom-elements.ts";
 import {
   hideOfflineIndicator,
@@ -318,6 +319,41 @@ const initializeApp = Effect.gen(function* () {
   intervalRefInstance = intervalRef;
   appInitialized = true;
 
+  // Handle project selection
+  const handleProjectSelection = (value: string | undefined) =>
+    Effect.gen(function* () {
+      // Convert empty string to undefined for "No project"
+      const projectId = value === "" ? undefined : value;
+      yield* Effect.log(
+        `Project selected: ${projectId ?? "none"} (${projectId ? "setting project" : "clearing project"})`
+      );
+      yield* Ref.set(selectedProjectIdRef, projectId);
+      // If timer is running, update it with the new project
+      const timer = yield* Ref.get(timerRef);
+      if (timer) {
+        yield* updateTimerForProject(timer, projectId, timerRef);
+      } else {
+        yield* Effect.log("No active timer, skipping update");
+      }
+    });
+
+  // Update timer with new project
+  const updateTimerForProject = (
+    timer: Timer,
+    projectId: string | undefined,
+    ref: Ref.Ref<Timer | null>
+  ) =>
+    Effect.gen(function* () {
+      yield* Effect.log(
+        `Timer is running, updating project from ${timer.projectId ?? "none"} to ${projectId ?? "none"}`
+      );
+      const updatedTimer = yield* updateTimer(projectId);
+      if (updatedTimer) {
+        yield* Ref.set(ref, updatedTimer);
+        yield* Effect.log("Timer updated successfully");
+      }
+    });
+
   // Initialize combobox
   yield* createCombobox({
     containerId: "project-combobox",
@@ -326,26 +362,13 @@ const initializeApp = Effect.gen(function* () {
     placeholder: "No project",
     emptyText: "No projects found",
     onSelect: (value) =>
-      Effect.gen(function* () {
-        // Convert empty string to undefined for "No project"
-        const projectId = value === "" ? undefined : value;
-        yield* Effect.log(
-          `Project selected: ${projectId ?? "none"} (${projectId ? "setting project" : "clearing project"})`
-        );
-        yield* Ref.set(selectedProjectIdRef, projectId);
-        // If timer is running, update it with the new project
-        const timer = yield* Ref.get(timerRef);
-        if (timer) {
-          yield* Effect.log(
-            `Timer is running, updating project from ${timer.projectId ?? "none"} to ${projectId ?? "none"}`
+      Effect.catchAll(handleProjectSelection(value), (error) =>
+        Effect.gen(function* () {
+          yield* Effect.logError(
+            `Failed to handle project selection: ${error}`
           );
-          const updatedTimer = yield* updateTimer(projectId);
-          yield* Ref.set(timerRef, updatedTimer);
-          yield* Effect.log(`Timer updated successfully`);
-        } else {
-          yield* Effect.log(`No active timer, skipping update`);
-        }
-      }),
+        })
+      ),
   });
 
   // Load initial data
@@ -830,7 +853,19 @@ const initializeApp = Effect.gen(function* () {
     }
   });
 
-  projectNameInput.addEventListener("blur", () => {
+  projectNameInput.addEventListener("blur", (e) => {
+    // Don't create on blur if user clicked the submit button
+    if (e.relatedTarget === projectSubmitBtn) {
+      return;
+    }
+    Effect.runPromise(
+      Effect.catchAll(handleProjectCreate(), (error) =>
+        Effect.logError(`Failed to create project: ${error}`)
+      )
+    );
+  });
+
+  projectSubmitBtn.addEventListener("click", () => {
     Effect.runPromise(
       Effect.catchAll(handleProjectCreate(), (error) =>
         Effect.logError(`Failed to create project: ${error}`)

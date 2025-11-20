@@ -46,6 +46,29 @@ export const createCombobox = <T = string>(
       throw new Error("Combobox wrapper element not found");
     }
 
+    // Make trigger input read-only
+    input.setAttribute("readonly", "true");
+    input.setAttribute("tabindex", "0");
+
+    // Create search input inside the list container
+    const searchInput = document.createElement("input");
+    searchInput.type = "text";
+    searchInput.placeholder = "Search...";
+    searchInput.autocomplete = "off";
+    searchInput.className =
+      "w-full px-3 py-2 border-b border-border bg-transparent text-foreground outline-none text-sm";
+    searchInput.setAttribute("aria-label", "Search options");
+    searchInput.setAttribute("data-combobox-search", "true");
+
+    // Create a wrapper for options to separate from search input
+    const optionsContainer = document.createElement("div");
+    optionsContainer.className = "max-h-60 overflow-auto";
+    optionsContainer.setAttribute("role", "listbox");
+
+    // Initialize list structure
+    list.appendChild(searchInput);
+    list.appendChild(optionsContainer);
+
     let isOpen = false;
     let selectedIndex = -1;
     let filteredOptions: ComboboxOption<T>[] = [];
@@ -57,7 +80,7 @@ export const createCombobox = <T = string>(
     };
 
     const filterOptions = () => {
-      const searchTerm = input.value.toLowerCase().trim();
+      const searchTerm = searchInput.value.toLowerCase().trim();
       if (searchTerm === "") {
         filteredOptions = allOptions;
       } else {
@@ -70,13 +93,13 @@ export const createCombobox = <T = string>(
 
     const renderList = () => {
       if (filteredOptions.length === 0) {
-        list.innerHTML = `<div class="px-3 py-2 text-sm text-muted-foreground">${
+        optionsContainer.innerHTML = `<div class="px-3 py-2 text-sm text-muted-foreground">${
           config.emptyText || "No options found"
         }</div>`;
         return;
       }
 
-      list.innerHTML = filteredOptions
+      optionsContainer.innerHTML = filteredOptions
         .map(
           (option, index) => `
         <div
@@ -100,7 +123,11 @@ export const createCombobox = <T = string>(
       container.classList.add("combobox-open");
       list.classList.remove("hidden");
       button.setAttribute("aria-expanded", "true");
-      input.focus();
+      // Focus search input when opening
+      setTimeout(() => {
+        searchInput.focus();
+        searchInput.select();
+      }, 0);
       filterOptions();
     };
 
@@ -110,31 +137,29 @@ export const createCombobox = <T = string>(
       container.classList.remove("combobox-open");
       list.classList.add("hidden");
       button.setAttribute("aria-expanded", "false");
+      // Clear search input when closing
+      searchInput.value = "";
       input.blur();
+      searchInput.blur();
     };
+
+    const handleSelectError = (error: unknown) =>
+      Effect.gen(function* () {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        yield* Effect.logError(`Combobox onSelect error: ${errorMessage}`);
+      });
 
     const selectOption = (option: ComboboxOption<T> | undefined) => {
       if (option) {
         input.value = option.label;
         Effect.runPromise(
-          Effect.catchAll(config.onSelect(option.value), (error) =>
-            Effect.gen(function* () {
-              yield* Effect.logError(
-                `Combobox onSelect error: ${error instanceof Error ? error.message : String(error)}`
-              );
-            })
-          )
+          Effect.catchAll(config.onSelect(option.value), handleSelectError)
         );
       } else {
         input.value = "";
         Effect.runPromise(
-          Effect.catchAll(config.onSelect(undefined), (error) =>
-            Effect.gen(function* () {
-              yield* Effect.logError(
-                `Combobox onSelect error: ${error instanceof Error ? error.message : String(error)}`
-              );
-            })
-          )
+          Effect.catchAll(config.onSelect(undefined), handleSelectError)
         );
       }
       close();
@@ -144,7 +169,7 @@ export const createCombobox = <T = string>(
       if (index >= 0 && index < filteredOptions.length) {
         selectedIndex = index;
         renderList();
-        const optionElement = list.querySelector(
+        const optionElement = optionsContainer.querySelector(
           `[data-index="${index}"]`
         ) as HTMLElement;
         if (optionElement) {
@@ -180,7 +205,7 @@ export const createCombobox = <T = string>(
       }
     };
 
-    const handleKeyDownWhenOpen = (e: KeyboardEvent) => {
+    const handleSearchInputKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         handleArrowDown();
@@ -194,16 +219,20 @@ export const createCombobox = <T = string>(
         e.preventDefault();
         close();
       }
+      // For other keys, let the search input handle them (input event will trigger filtering)
+    };
+
+    const handleKeyDownWhenOpen = (e: KeyboardEvent) => {
+      // Only handle navigation keys when search input is focused
+      if (document.activeElement === searchInput) {
+        handleSearchInputKeyDown(e);
+      }
     };
 
     // Wrapper click handler - makes entire area clickable
     wrapper.addEventListener("click", (e) => {
-      // Don't interfere with input or button clicks
-      if (
-        e.target === input ||
-        e.target === button ||
-        button.contains(e.target as Node)
-      ) {
+      // Don't interfere with button clicks
+      if (e.target === button || button.contains(e.target as Node)) {
         return;
       }
       // Click on wrapper area opens combobox if closed
@@ -222,16 +251,15 @@ export const createCombobox = <T = string>(
       }
     });
 
-    // Input handlers
-    input.addEventListener("input", () => {
-      selectedIndex = -1;
-      filterOptions();
+    // Trigger input handlers (read-only, just opens on focus/click)
+    input.addEventListener("focus", (e) => {
+      e.preventDefault();
       if (!isOpen) {
         open();
       }
     });
 
-    input.addEventListener("focus", () => {
+    input.addEventListener("click", () => {
       if (!isOpen) {
         open();
       }
@@ -245,8 +273,18 @@ export const createCombobox = <T = string>(
       handleKeyDownWhenOpen(e);
     });
 
-    // List click handler (event delegation)
-    list.addEventListener("click", (e) => {
+    // Search input handlers
+    searchInput.addEventListener("input", () => {
+      selectedIndex = -1;
+      filterOptions();
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      handleKeyDownWhenOpen(e);
+    });
+
+    // Options container click handler (event delegation)
+    optionsContainer.addEventListener("click", (e) => {
       const target = e.target as HTMLElement;
       const option = target.closest(".combobox-option") as HTMLElement;
       if (option) {

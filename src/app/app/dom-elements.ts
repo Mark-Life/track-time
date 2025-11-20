@@ -21,3 +21,6 @@ export const projectInputContainer = document.getElementById(
 export const projectNameInput = document.getElementById(
   "project-name-input"
 ) as HTMLInputElement;
+export const projectSubmitBtn = document.getElementById(
+  "project-submit-btn"
+) as HTMLButtonElement;
