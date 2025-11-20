@@ -200,24 +200,56 @@ export const createAuthErrorResponse = (message: string): Response =>
 export const createAuthSuccessResponse = (data: unknown): Response =>
   Response.json(data);
 
+/**
+ * Sets authentication cookie with secure flags.
+ * In production, adds Secure flag to ensure cookie is only sent over HTTPS.
+ */
 export const setAuthCookie = (
   response: Response,
   token: string,
   maxAge: number = 7 * 24 * 60 * 60
 ): Response => {
   const isProduction = process.env.NODE_ENV === "production";
-  const secureFlag = isProduction ? "Secure" : "";
-  const cookieValue =
-    `token=${token}; HttpOnly; SameSite=Strict; Max-Age=${maxAge}; Path=/; ${secureFlag}`.trim();
 
+  // Build cookie string with proper formatting
+  const cookieParts = [
+    `token=${token}`,
+    "HttpOnly",
+    "SameSite=Strict",
+    `Max-Age=${maxAge}`,
+    "Path=/",
+  ];
+
+  // Add Secure flag only in production (requires HTTPS)
+  if (isProduction) {
+    cookieParts.push("Secure");
+  }
+
+  const cookieValue = cookieParts.join("; ");
   response.headers.set("Set-Cookie", cookieValue);
   return response;
 };
 
+/**
+ * Clears authentication cookie by setting Max-Age=0.
+ * Note: Secure flag is omitted to allow clearing over HTTP in development.
+ */
 export const clearAuthCookie = (response: Response): Response => {
-  response.headers.set(
-    "Set-Cookie",
-    "token=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/"
-  );
+  const isProduction = process.env.NODE_ENV === "production";
+
+  const cookieParts = [
+    "token=",
+    "HttpOnly",
+    "SameSite=Strict",
+    "Max-Age=0",
+    "Path=/",
+  ];
+
+  // Add Secure flag only in production
+  if (isProduction) {
+    cookieParts.push("Secure");
+  }
+
+  response.headers.set("Set-Cookie", cookieParts.join("; "));
   return response;
 };

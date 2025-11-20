@@ -21,6 +21,10 @@ const constantTimeCompare = (a: string, b: string): boolean => {
   return diff === 0;
 };
 
+/**
+ * Gets and validates the JWT secret from environment variables.
+ * Ensures the secret meets minimum security requirements.
+ */
 const getJWTSecret = (): Effect.Effect<string, Error> =>
   Effect.gen(function* () {
     const secret = process.env["JWT_SECRET"];
@@ -29,7 +33,19 @@ const getJWTSecret = (): Effect.Effect<string, Error> =>
         new Error("JWT_SECRET environment variable is not set")
       );
     }
-    return secret as string;
+
+    // TypeScript narrowing: secret is guaranteed to be string here
+    const secretString = secret as string;
+
+    // Require minimum secret length for security (RFC 7518 recommends at least 256 bits = 32 bytes)
+    // For HS256, secret should be at least 32 characters (256 bits)
+    if (secretString.length < 32) {
+      yield* Effect.fail(
+        new Error("JWT_SECRET must be at least 32 characters long for security")
+      );
+    }
+
+    return secretString;
   });
 
 export const sign = (
@@ -55,9 +71,10 @@ export const sign = (
     const encodedPayload = base64UrlEncode(JSON.stringify(fullPayload));
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
 
-    const hasher = new Bun.CryptoHasher("sha256", secret);
-    hasher.update(unsignedToken);
-    const signature = hasher.digest("base64url");
+    // Bun.CryptoHasher with secret key creates HMAC-SHA256
+    const hmac = new Bun.CryptoHasher("sha256", secret);
+    hmac.update(unsignedToken);
+    const signature = hmac.digest("base64url");
 
     return `${unsignedToken}.${signature}`;
   });
@@ -96,9 +113,10 @@ export const verify = (token: string): Effect.Effect<JWTPayload, Error> =>
 
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
 
-    const hasher = new Bun.CryptoHasher("sha256", secret);
-    hasher.update(unsignedToken);
-    const expectedSignature = hasher.digest("base64url");
+    // Bun.CryptoHasher with secret key creates HMAC-SHA256
+    const hmac = new Bun.CryptoHasher("sha256", secret);
+    hmac.update(unsignedToken);
+    const expectedSignature = hmac.digest("base64url");
 
     if (!constantTimeCompare(signature as string, expectedSignature)) {
       yield* Effect.fail(new Error("Invalid token signature"));
