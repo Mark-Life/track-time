@@ -1,28 +1,30 @@
-import { redis } from "bun";
 import { Effect } from "effect";
 import type { Entry } from "~/lib/types.ts";
+import { Redis } from "../client.ts";
+
+const userKey = (userId: string, key: string): string =>
+  `user:${userId}:${key}`;
 
 /**
  * Get all entries
  */
-export const getEntries = (): Effect.Effect<Entry[], Error> =>
+export const getEntries = (
+  userId: string
+): Effect.Effect<Entry[], Error, Redis> =>
   Effect.gen(function* () {
-    const ids: string[] = yield* Effect.tryPromise({
-      try: () => redis.smembers("entries:list"),
-      catch: (error) => new Error(`Failed to get entry IDs: ${error}`),
-    });
+    const redis = yield* Redis;
+
+    const ids: string[] = yield* redis.smembers(
+      userKey(userId, "entries:list")
+    );
 
     if (!ids || ids.length === 0) {
       yield* Effect.log("📋 No entries found");
       return [];
     }
 
-    // Fetch all entries in parallel
     const entryPromises = ids.map((id) =>
-      Effect.tryPromise({
-        try: () => redis.hgetall(`entry:${id}`),
-        catch: (error) => new Error(`Failed to get entry ${id}: ${error}`),
-      })
+      redis.hgetall(userKey(userId, `entry:${id}`))
     );
 
     const entryDataArray = yield* Effect.all(entryPromises, {
@@ -49,7 +51,6 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
       }
     }
 
-    // Sort by startedAt descending (newest first)
     const sorted = entries.sort(
       (a, b) =>
         new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
@@ -64,23 +65,24 @@ export const getEntries = (): Effect.Effect<Entry[], Error> =>
  * Update entry
  */
 export const updateEntry = (
+  userId: string,
   id: string,
   startedAt: string,
   endedAt: string,
   projectId?: string
-): Effect.Effect<Entry, Error> =>
+): Effect.Effect<Entry, Error, Redis> =>
   Effect.gen(function* () {
-    // Check if entry exists
-    const exists: boolean = yield* Effect.tryPromise({
-      try: () => redis.sismember("entries:list", id),
-      catch: (error) => new Error(`Failed to check if entry exists: ${error}`),
-    });
+    const redis = yield* Redis;
+
+    const exists: boolean = yield* redis.sismember(
+      userKey(userId, "entries:list"),
+      id
+    );
 
     if (!exists) {
       yield* Effect.fail(new Error(`Entry with id ${id} not found`));
     }
 
-    // Validate date formats
     const startedAtDate = new Date(startedAt);
     const endedAtDate = new Date(endedAt);
 
@@ -121,18 +123,10 @@ export const updateEntry = (
     };
 
     if (!entry.projectId) {
-      // Remove projectId if it was set before but is now being removed
-      yield* Effect.tryPromise({
-        try: () => redis.hdel(`entry:${id}`, "projectId"),
-        catch: (error) =>
-          new Error(`Failed to remove projectId from entry: ${error}`),
-      });
+      yield* redis.hdel(userKey(userId, `entry:${id}`), "projectId");
     }
 
-    yield* Effect.tryPromise({
-      try: () => redis.hset(`entry:${id}`, entryData),
-      catch: (error) => new Error(`Failed to update entry: ${error}`),
-    });
+    yield* redis.hset(userKey(userId, `entry:${id}`), entryData);
 
     yield* Effect.log(`✏️  Updated entry ${id}`);
     yield* Effect.log(`   Started: ${entry.startedAt}`);
@@ -147,17 +141,15 @@ export const updateEntry = (
 /**
  * Delete entry
  */
-export const deleteEntry = (id: string): Effect.Effect<void, Error> =>
+export const deleteEntry = (
+  userId: string,
+  id: string
+): Effect.Effect<void, Error, Redis> =>
   Effect.gen(function* () {
-    yield* Effect.tryPromise({
-      try: () => redis.del(`entry:${id}`),
-      catch: (error) => new Error(`Failed to delete entry hash: ${error}`),
-    });
+    const redis = yield* Redis;
 
-    yield* Effect.tryPromise({
-      try: () => redis.srem("entries:list", id),
-      catch: (error) => new Error(`Failed to remove entry from list: ${error}`),
-    });
+    yield* redis.del(userKey(userId, `entry:${id}`));
+    yield* redis.srem(userKey(userId, "entries:list"), id);
 
     yield* Effect.log(`🗑️  Deleted entry ${id}`);
   });

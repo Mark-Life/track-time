@@ -1,25 +1,32 @@
-import { redis } from "bun";
 import { Effect } from "effect";
 import type { Entry, Timer } from "~/lib/types.ts";
+import { Redis } from "../client.ts";
+
+const userKey = (userId: string, key: string): string =>
+  `user:${userId}:${key}`;
 
 /**
  * Get active timer
  */
-export const getActiveTimer = (): Effect.Effect<Timer | null, Error> =>
+export const getActiveTimer = (
+  userId: string
+): Effect.Effect<Timer | null, Error, Redis> =>
   Effect.gen(function* () {
-    const startedAt: string | null = yield* Effect.tryPromise({
-      try: () => redis.hget("active:timer", "startedAt"),
-      catch: (error) => new Error(`Failed to get active timer: ${error}`),
-    });
+    const redis = yield* Redis;
+
+    const startedAt: string | null = yield* redis.hget(
+      userKey(userId, "active:timer"),
+      "startedAt"
+    );
 
     if (!startedAt) {
       return null;
     }
 
-    const projectId: string | null = yield* Effect.tryPromise({
-      try: () => redis.hget("active:timer", "projectId"),
-      catch: (error) => new Error(`Failed to get timer projectId: ${error}`),
-    });
+    const projectId: string | null = yield* redis.hget(
+      userKey(userId, "active:timer"),
+      "projectId"
+    );
 
     return {
       startedAt: startedAt as string,
@@ -31,10 +38,12 @@ export const getActiveTimer = (): Effect.Effect<Timer | null, Error> =>
  * Start timer
  */
 export const startTimer = (
+  userId: string,
   startedAt?: string,
   projectId?: string
-): Effect.Effect<Timer, Error> =>
+): Effect.Effect<Timer, Error, Redis> =>
   Effect.gen(function* () {
+    const redis = yield* Redis;
     const timerStartedAt = startedAt ?? new Date().toISOString();
 
     const timerData: Record<string, string> = {
@@ -42,10 +51,7 @@ export const startTimer = (
       ...(projectId ? { projectId } : {}),
     };
 
-    yield* Effect.tryPromise({
-      try: () => redis.hset("active:timer", timerData),
-      catch: (error) => new Error(`Failed to start timer: ${error}`),
-    });
+    yield* redis.hset(userKey(userId, "active:timer"), timerData);
 
     yield* Effect.log(`⏱️  Timer started at ${timerStartedAt}`);
 
@@ -58,9 +64,12 @@ export const startTimer = (
 /**
  * Stop timer and save entry
  */
-export const stopTimer = (): Effect.Effect<Entry | null, Error> =>
+export const stopTimer = (
+  userId: string
+): Effect.Effect<Entry | null, Error, Redis> =>
   Effect.gen(function* () {
-    const timer: Timer | null = yield* getActiveTimer();
+    const redis = yield* Redis;
+    const timer: Timer | null = yield* getActiveTimer(userId);
     if (!timer) {
       return null;
     }
@@ -68,7 +77,7 @@ export const stopTimer = (): Effect.Effect<Entry | null, Error> =>
     const endedAt = new Date().toISOString();
     const startTime = new Date(timer.startedAt).getTime();
     const endTime = new Date(endedAt).getTime();
-    const duration = (endTime - startTime) / (1000 * 60 * 60); // hours in decimal
+    const duration = (endTime - startTime) / (1000 * 60 * 60);
 
     const id = crypto.randomUUID();
     const entry: Entry = {
@@ -79,7 +88,6 @@ export const stopTimer = (): Effect.Effect<Entry | null, Error> =>
       ...(timer.projectId ? { projectId: timer.projectId } : {}),
     };
 
-    // Save entry to Redis
     const entryData: Record<string, string> = {
       id,
       startedAt: entry.startedAt,
@@ -88,21 +96,9 @@ export const stopTimer = (): Effect.Effect<Entry | null, Error> =>
       ...(entry.projectId ? { projectId: entry.projectId } : {}),
     };
 
-    yield* Effect.tryPromise({
-      try: () => redis.hset(`entry:${id}`, entryData),
-      catch: (error) => new Error(`Failed to save entry: ${error}`),
-    });
-
-    yield* Effect.tryPromise({
-      try: () => redis.sadd("entries:list", id),
-      catch: (error) => new Error(`Failed to add entry to list: ${error}`),
-    });
-
-    // Remove active timer
-    yield* Effect.tryPromise({
-      try: () => redis.del("active:timer"),
-      catch: (error) => new Error(`Failed to delete active timer: ${error}`),
-    });
+    yield* redis.hset(userKey(userId, `entry:${id}`), entryData);
+    yield* redis.sadd(userKey(userId, "entries:list"), id);
+    yield* redis.del(userKey(userId, "active:timer"));
 
     yield* Effect.log("✅ Timer stopped - Entry created:");
     yield* Effect.log(`   ID: ${entry.id}`);

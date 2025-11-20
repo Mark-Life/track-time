@@ -2,7 +2,7 @@ import type { ServerWebSocket } from "bun";
 import { Effect } from "effect";
 import landing from "~/app/index.html";
 import login from "~/app/login/login.html";
-import { redisResource } from "~/lib/redis";
+import { Redis, RedisLive } from "~/lib/redis";
 import { handleAssets } from "./assets.ts";
 import {
   handleApiRoutes,
@@ -216,19 +216,22 @@ const serverResource = Effect.acquireRelease(createServer, (server) =>
 
 export const startServer = async () =>
   await Effect.runPromise(
-    Effect.scoped(
-      Effect.gen(function* () {
-        // Acquire Redis connection first - server won't start if Redis is unavailable
-        yield* redisResource;
-        yield* Effect.log("✅ Redis connection verified");
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          // Acquire Redis service - server won't start if Redis is unavailable
+          yield* Redis;
+          yield* Effect.log("✅ Redis connection verified");
 
-        // Then start the server
-        yield* serverResource;
-        yield* Effect.log("✅ Server started successfully");
+          // Then start the server
+          yield* serverResource;
+          yield* Effect.log("✅ Server started successfully");
 
-        // Keep the server running
-        yield* Effect.never;
-      })
+          // Keep the server running
+          yield* Effect.never;
+        })
+      ),
+      RedisLive
     )
   ).catch((error) => {
     console.error("Server error:", error);

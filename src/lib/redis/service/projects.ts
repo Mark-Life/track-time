@@ -1,13 +1,21 @@
-import { redis } from "bun";
 import { Effect } from "effect";
 import type { Project } from "~/lib/types.ts";
+import { Redis } from "../client.ts";
 import { deleteEntry, getEntries } from "./entries.ts";
+
+const userKey = (userId: string, key: string): string =>
+  `user:${userId}:${key}`;
 
 /**
  * Create project
  */
-export const createProject = (name: string): Effect.Effect<Project, Error> =>
+export const createProject = (
+  userId: string,
+  name: string
+): Effect.Effect<Project, Error, Redis> =>
   Effect.gen(function* () {
+    const redis = yield* Redis;
+
     if (!name || name.trim().length === 0) {
       yield* Effect.fail(new Error("Project name cannot be empty"));
     }
@@ -18,8 +26,7 @@ export const createProject = (name: string): Effect.Effect<Project, Error> =>
 
     const trimmedName = name.trim();
 
-    // Check for duplicate names
-    const projects = yield* getProjects();
+    const projects = yield* getProjects(userId);
     const duplicate = projects.find((p) => p.name === trimmedName);
     if (duplicate) {
       yield* Effect.fail(new Error("Project name must be unique"));
@@ -28,19 +35,12 @@ export const createProject = (name: string): Effect.Effect<Project, Error> =>
     const id = crypto.randomUUID();
     const project: Project = { id, name: trimmedName };
 
-    yield* Effect.tryPromise({
-      try: () =>
-        redis.hset(`project:${id}`, {
-          id,
-          name: trimmedName,
-        }),
-      catch: (error) => new Error(`Failed to create project: ${error}`),
+    yield* redis.hset(userKey(userId, `project:${id}`), {
+      id,
+      name: trimmedName,
     });
 
-    yield* Effect.tryPromise({
-      try: () => redis.sadd("projects:list", id),
-      catch: (error) => new Error(`Failed to add project to list: ${error}`),
-    });
+    yield* redis.sadd(userKey(userId, "projects:list"), id);
 
     yield* Effect.log(`✅ Created project: ${trimmedName} (${id})`);
 
@@ -50,24 +50,23 @@ export const createProject = (name: string): Effect.Effect<Project, Error> =>
 /**
  * Get all projects
  */
-export const getProjects = (): Effect.Effect<Project[], Error> =>
+export const getProjects = (
+  userId: string
+): Effect.Effect<Project[], Error, Redis> =>
   Effect.gen(function* () {
-    const ids: string[] = yield* Effect.tryPromise({
-      try: () => redis.smembers("projects:list"),
-      catch: (error) => new Error(`Failed to get project IDs: ${error}`),
-    });
+    const redis = yield* Redis;
+
+    const ids: string[] = yield* redis.smembers(
+      userKey(userId, "projects:list")
+    );
 
     if (!ids || ids.length === 0) {
       yield* Effect.log("📁 No projects found");
       return [];
     }
 
-    // Fetch all projects in parallel
     const projectPromises = ids.map((id) =>
-      Effect.tryPromise({
-        try: () => redis.hgetall(`project:${id}`),
-        catch: (error) => new Error(`Failed to get project ${id}: ${error}`),
-      })
+      redis.hgetall(userKey(userId, `project:${id}`))
     );
 
     const projectDataArray = yield* Effect.all(projectPromises, {
@@ -88,7 +87,6 @@ export const getProjects = (): Effect.Effect<Project[], Error> =>
       }
     }
 
-    // Sort by name
     const sorted = projects.sort((a, b) => a.name.localeCompare(b.name));
 
     yield* Effect.log(`📁 Loaded ${sorted.length} projects from Redis`);
@@ -99,12 +97,14 @@ export const getProjects = (): Effect.Effect<Project[], Error> =>
 /**
  * Get single project
  */
-export const getProject = (id: string): Effect.Effect<Project | null, Error> =>
+export const getProject = (
+  userId: string,
+  id: string
+): Effect.Effect<Project | null, Error, Redis> =>
   Effect.gen(function* () {
-    const data = yield* Effect.tryPromise({
-      try: () => redis.hgetall(`project:${id}`),
-      catch: (error) => new Error(`Failed to get project ${id}: ${error}`),
-    });
+    const redis = yield* Redis;
+
+    const data = yield* redis.hgetall(userKey(userId, `project:${id}`));
 
     if (!data || Object.keys(data).length === 0) {
       return null;
@@ -125,10 +125,13 @@ export const getProject = (id: string): Effect.Effect<Project | null, Error> =>
  * Update project
  */
 export const updateProject = (
+  userId: string,
   id: string,
   name: string
-): Effect.Effect<Project, Error> =>
+): Effect.Effect<Project, Error, Redis> =>
   Effect.gen(function* () {
+    const redis = yield* Redis;
+
     if (!name || name.trim().length === 0) {
       yield* Effect.fail(new Error("Project name cannot be empty"));
     }
@@ -139,14 +142,12 @@ export const updateProject = (
 
     const trimmedName = name.trim();
 
-    // Check if project exists
-    const existing = yield* getProject(id);
+    const existing = yield* getProject(userId, id);
     if (!existing) {
       yield* Effect.fail(new Error(`Project with id ${id} not found`));
     }
 
-    // Check for duplicate names (excluding current project)
-    const projects = yield* getProjects();
+    const projects = yield* getProjects(userId);
     const duplicate = projects.find(
       (p) => p.name === trimmedName && p.id !== id
     );
@@ -156,13 +157,9 @@ export const updateProject = (
 
     const project: Project = { id, name: trimmedName };
 
-    yield* Effect.tryPromise({
-      try: () =>
-        redis.hset(`project:${id}`, {
-          id,
-          name: trimmedName,
-        }),
-      catch: (error) => new Error(`Failed to update project: ${error}`),
+    yield* redis.hset(userKey(userId, `project:${id}`), {
+      id,
+      name: trimmedName,
     });
 
     yield* Effect.log(`✏️  Updated project: ${trimmedName} (${id})`);
@@ -174,39 +171,35 @@ export const updateProject = (
  * Delete project
  */
 export const deleteProject = (
+  userId: string,
   id: string,
   deleteEntries: boolean
-): Effect.Effect<void, Error> =>
+): Effect.Effect<void, Error, Redis> =>
   Effect.gen(function* () {
-    // Check if project exists
-    const existing = yield* getProject(id);
+    const redis = yield* Redis;
+
+    const existing = yield* getProject(userId, id);
     if (!existing) {
       yield* Effect.fail(new Error(`Project with id ${id} not found`));
     }
 
     if (deleteEntries) {
-      // Delete all entries with this projectId
-      const entries = yield* getEntries();
+      const entries = yield* getEntries(userId);
       const projectEntries = entries.filter((e) => e.projectId === id);
 
       for (const entry of projectEntries) {
-        yield* deleteEntry(entry.id);
+        yield* deleteEntry(userId, entry.id);
       }
 
       yield* Effect.log(
         `🗑️  Deleted ${projectEntries.length} entries for project ${id}`
       );
     } else {
-      // Remove projectId from all entries
-      const entries = yield* getEntries();
+      const entries = yield* getEntries(userId);
       const projectEntries = entries.filter((e) => e.projectId === id);
 
       for (const entry of projectEntries) {
-        yield* Effect.tryPromise({
-          try: () => redis.hdel(`entry:${entry.id}`, "projectId"),
-          catch: (error) =>
-            new Error(`Failed to remove projectId from entry: ${error}`),
-        });
+        yield* redis.hdel(userKey(userId, `entry:${entry.id}`), "projectId");
       }
 
       yield* Effect.log(
@@ -214,17 +207,8 @@ export const deleteProject = (
       );
     }
 
-    // Delete project
-    yield* Effect.tryPromise({
-      try: () => redis.del(`project:${id}`),
-      catch: (error) => new Error(`Failed to delete project hash: ${error}`),
-    });
-
-    yield* Effect.tryPromise({
-      try: () => redis.srem("projects:list", id),
-      catch: (error) =>
-        new Error(`Failed to remove project from list: ${error}`),
-    });
+    yield* redis.del(userKey(userId, `project:${id}`));
+    yield* redis.srem(userKey(userId, "projects:list"), id);
 
     yield* Effect.log(`🗑️  Deleted project ${id}`);
   });

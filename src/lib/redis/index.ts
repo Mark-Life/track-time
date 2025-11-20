@@ -1,5 +1,5 @@
-// Redis client and resource
-export { redisResource } from "./client.ts";
+// Redis client and service
+export { Redis, RedisLive } from "./client.ts";
 
 // Timer operations
 export {

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
-import { deleteEntry, getEntries, updateEntry } from "~/lib/redis-scoped.ts";
+import { deleteEntry, getEntries, RedisLive, updateEntry } from "~/lib/redis";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -66,11 +66,16 @@ const createEntryUpdatedMessage = (entry: Entry): WebSocketMessage => ({
 
 export const handleEntriesGet = (req: Request) =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const userId = yield* getVerifiedUserId(req);
-      const entries = yield* getEntries(userId);
-      return Response.json(entries);
-    })
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const entries = yield* getEntries(userId);
+          return Response.json(entries);
+        })
+      ),
+      RedisLive
+    )
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
@@ -85,28 +90,39 @@ export const handleEntriesGet = (req: Request) =>
 
 export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const userId = yield* getVerifiedUserId(req);
-      const body = yield* parseEntryUpdateBody(req);
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const body = yield* parseEntryUpdateBody(req);
 
-      const validationError = validateEntryDates(body.startedAt, body.endedAt);
-      if (validationError) {
-        return validationError;
-      }
+          const validationError = validateEntryDates(
+            body.startedAt,
+            body.endedAt
+          );
+          if (validationError) {
+            return validationError;
+          }
 
-      const entry = yield* updateEntry(
-        userId,
-        id,
-        body.startedAt,
-        body.endedAt,
-        body.projectId
-      );
+          const entry = yield* updateEntry(
+            userId,
+            id,
+            body.startedAt,
+            body.endedAt,
+            body.projectId
+          );
 
-      const message = createEntryUpdatedMessage(entry);
-      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
+          const message = createEntryUpdatedMessage(entry);
+          server.publish(
+            `user:${userId}:timer:updates`,
+            JSON.stringify(message)
+          );
 
-      return Response.json(entry);
-    })
+          return Response.json(entry);
+        })
+      ),
+      RedisLive
+    )
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
@@ -122,18 +138,26 @@ export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
 
 export const handleEntryDelete = (req: Request, id: string, server: Server) =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const userId = yield* getVerifiedUserId(req);
-      yield* deleteEntry(userId, id);
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          yield* deleteEntry(userId, id);
 
-      const message: WebSocketMessage = {
-        type: "entry:deleted",
-        data: { id },
-      };
-      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
+          const message: WebSocketMessage = {
+            type: "entry:deleted",
+            data: { id },
+          };
+          server.publish(
+            `user:${userId}:timer:updates`,
+            JSON.stringify(message)
+          );
 
-      return Response.json({ success: true });
-    })
+          return Response.json({ success: true });
+        })
+      ),
+      RedisLive
+    )
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });

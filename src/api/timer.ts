@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
-import { getActiveTimer, startTimer, stopTimer } from "~/lib/redis-scoped.ts";
+import { getActiveTimer, RedisLive, startTimer, stopTimer } from "~/lib/redis";
 import type { WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -44,11 +44,16 @@ const createTimerStartedMessage = (timer: {
 
 export const handleTimerGet = (req: Request) =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const userId = yield* getVerifiedUserId(req);
-      const timer = yield* getActiveTimer(userId);
-      return Response.json(timer);
-    })
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const timer = yield* getActiveTimer(userId);
+          return Response.json(timer);
+        })
+      ),
+      RedisLive
+    )
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
@@ -63,24 +68,36 @@ export const handleTimerGet = (req: Request) =>
 
 export const handleTimerStart = (req: Request, server: Server) =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const userId = yield* getVerifiedUserId(req);
-      const body = yield* parseTimerStartBody(req);
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const body = yield* parseTimerStartBody(req);
 
-      if (body?.startedAt) {
-        const validationError = validateStartedAt(body.startedAt);
-        if (validationError) {
-          return validationError;
-        }
-      }
+          if (body?.startedAt) {
+            const validationError = validateStartedAt(body.startedAt);
+            if (validationError) {
+              return validationError;
+            }
+          }
 
-      const timer = yield* startTimer(userId, body?.startedAt, body?.projectId);
+          const timer = yield* startTimer(
+            userId,
+            body?.startedAt,
+            body?.projectId
+          );
 
-      const message = createTimerStartedMessage(timer);
-      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
+          const message = createTimerStartedMessage(timer);
+          server.publish(
+            `user:${userId}:timer:updates`,
+            JSON.stringify(message)
+          );
 
-      return Response.json(timer);
-    })
+          return Response.json(timer);
+        })
+      ),
+      RedisLive
+    )
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
@@ -95,22 +112,30 @@ export const handleTimerStart = (req: Request, server: Server) =>
 
 export const handleTimerStop = (req: Request, server: Server) =>
   Effect.runPromise(
-    Effect.gen(function* () {
-      const userId = yield* getVerifiedUserId(req);
-      const entry = yield* stopTimer(userId);
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const entry = yield* stopTimer(userId);
 
-      if (!entry) {
-        return Response.json({ error: "No active timer" }, { status: 400 });
-      }
+          if (!entry) {
+            return Response.json({ error: "No active timer" }, { status: 400 });
+          }
 
-      const message: WebSocketMessage = {
-        type: "timer:stopped",
-        data: { entry },
-      };
-      server.publish(`user:${userId}:timer:updates`, JSON.stringify(message));
+          const message: WebSocketMessage = {
+            type: "timer:stopped",
+            data: { entry },
+          };
+          server.publish(
+            `user:${userId}:timer:updates`,
+            JSON.stringify(message)
+          );
 
-      return Response.json(entry);
-    })
+          return Response.json(entry);
+        })
+      ),
+      RedisLive
+    )
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
