@@ -18,6 +18,51 @@ import {
   setServerInstance,
 } from "./watcher.ts";
 
+/**
+ * Checks token expiration and sends appropriate messages to the client.
+ * Clears the interval if token has expired or if sending messages fails.
+ */
+const checkTokenExpiration = (
+  ws: ServerWebSocket<WebSocketData>,
+  tokenExp: number,
+  checkInterval: NodeJS.Timeout
+): void => {
+  const now = Math.floor(Date.now() / 1000);
+  const timeUntilExpiry = tokenExp - now;
+
+  // If token expires in less than 1 hour, warn client
+  if (timeUntilExpiry > 0 && timeUntilExpiry < 3600) {
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "auth:token-expiring",
+          data: { expiresAt: tokenExp },
+        })
+      );
+    } catch (error) {
+      console.error("Failed to send token expiration warning:", error);
+      clearInterval(checkInterval);
+    }
+    return;
+  }
+
+  // If token has expired, notify client and close connection
+  if (timeUntilExpiry <= 0) {
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "auth:token-expired",
+          data: {},
+        })
+      );
+      ws.close(1008, "Token expired");
+    } catch (error) {
+      console.error("Failed to send token expired message:", error);
+    }
+    clearInterval(checkInterval);
+  }
+};
+
 const handleRequest = async (req: Request, srv: Server): Promise<Response> => {
   const url = new URL(req.url);
   const pathname = url.pathname;
@@ -94,45 +139,8 @@ const createServer = Effect.gen(function* () {
           ws.subscribe(`user:${userId}:timer:updates`);
 
           // Set up token expiration check (check every 5 minutes)
-          const checkInterval = setInterval(
-            () => {
-              const now = Math.floor(Date.now() / 1000);
-              const timeUntilExpiry = tokenExp - now;
-
-              // If token expires in less than 1 hour, warn client
-              if (timeUntilExpiry > 0 && timeUntilExpiry < 3600) {
-                try {
-                  ws.send(
-                    JSON.stringify({
-                      type: "auth:token-expiring",
-                      data: { expiresAt: tokenExp },
-                    })
-                  );
-                } catch (error) {
-                  console.error(
-                    "Failed to send token expiration warning:",
-                    error
-                  );
-                  clearInterval(checkInterval);
-                }
-              }
-
-              // If token has expired, notify client and close connection
-              if (timeUntilExpiry <= 0) {
-                try {
-                  ws.send(
-                    JSON.stringify({
-                      type: "auth:token-expired",
-                      data: {},
-                    })
-                  );
-                  ws.close(1008, "Token expired");
-                } catch (error) {
-                  console.error("Failed to send token expired message:", error);
-                }
-                clearInterval(checkInterval);
-              }
-            },
+          const checkInterval: NodeJS.Timeout = setInterval(
+            () => checkTokenExpiration(ws, tokenExp, checkInterval),
             5 * 60 * 1000
           ); // Check every 5 minutes
 

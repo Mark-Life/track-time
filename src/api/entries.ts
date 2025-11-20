@@ -104,13 +104,13 @@ export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
             return validationError;
           }
 
-          const entry = yield* updateEntry(
+          const entry = yield* updateEntry({
             userId,
             id,
-            body.startedAt,
-            body.endedAt,
-            body.projectId
-          );
+            startedAt: body.startedAt,
+            endedAt: body.endedAt,
+            projectId: body.projectId,
+          });
 
           const message = createEntryUpdatedMessage(entry);
           server.publish(

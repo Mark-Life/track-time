@@ -64,13 +64,19 @@ export const getEntries = (
 /**
  * Update entry
  */
-export const updateEntry = (
-  userId: string,
-  id: string,
-  startedAt: string,
-  endedAt: string,
-  projectId?: string
-): Effect.Effect<Entry, Error, Redis> =>
+export const updateEntry = ({
+  userId,
+  id,
+  startedAt,
+  endedAt,
+  projectId,
+}: {
+  userId: string;
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  projectId?: string;
+}): Effect.Effect<Entry, Error, Redis> =>
   Effect.gen(function* () {
     const redis = yield* Redis;
 
