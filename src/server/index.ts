@@ -82,22 +82,92 @@ const createServer = Effect.gen(function* () {
     websocket: {
       open(ws: ServerWebSocket<WebSocketData>) {
         const userId = ws.data?.userId;
+        const tokenExp = ws.data?.tokenExp;
         console.log("WebSocket opened for user:", userId);
 
         if (userId === "hmr") {
           // HMR WebSocket - subscribe to HMR channel
           ws.subscribe("hmr");
           console.log("HMR WebSocket connected");
-        } else if (userId) {
+        } else if (userId && tokenExp) {
           // Regular WebSocket - subscribe to user-specific channels
           ws.subscribe(`user:${userId}:timer:updates`);
+
+          // Set up token expiration check (check every 5 minutes)
+          const checkInterval = setInterval(() => {
+            const now = Math.floor(Date.now() / 1000);
+            const timeUntilExpiry = tokenExp - now;
+
+            // If token expires in less than 1 hour, warn client
+            if (timeUntilExpiry > 0 && timeUntilExpiry < 3600) {
+              try {
+                ws.send(
+                  JSON.stringify({
+                    type: "auth:token-expiring",
+                    data: { expiresAt: tokenExp },
+                  })
+                );
+              } catch (error) {
+                console.error("Failed to send token expiration warning:", error);
+                clearInterval(checkInterval);
+              }
+            }
+
+            // If token has expired, notify client and close connection
+            if (timeUntilExpiry <= 0) {
+              try {
+                ws.send(
+                  JSON.stringify({
+                    type: "auth:token-expired",
+                    data: {},
+                  })
+                );
+                ws.close(1008, "Token expired");
+              } catch (error) {
+                console.error("Failed to send token expired message:", error);
+              }
+              clearInterval(checkInterval);
+            }
+          }, 5 * 60 * 1000); // Check every 5 minutes
+
+          // Store interval ID for cleanup
+          (ws as unknown as { _tokenCheckInterval?: NodeJS.Timeout })
+            ._tokenCheckInterval = checkInterval;
         }
       },
-      message() {
-        // Client messages (not used for now)
+      message(ws: ServerWebSocket<WebSocketData>, message: string | Buffer) {
+        // Handle token refresh requests from client
+        try {
+          const data = JSON.parse(
+            typeof message === "string" ? message : message.toString()
+          );
+
+          if (data.type === "auth:refresh-token-request") {
+            // Client is requesting a token refresh
+            // Note: Actual token refresh should be done via HTTP endpoint
+            // This is just an acknowledgment
+            ws.send(
+              JSON.stringify({
+                type: "auth:refresh-token-required",
+                data: {
+                  message:
+                    "Please refresh your token via /api/auth/refresh-token endpoint",
+                },
+              })
+            );
+          }
+        } catch (error) {
+          // Ignore malformed messages
+          console.error("Failed to parse WebSocket message:", error);
+        }
       },
-      close() {
-        // Cleanup if needed
+      close(ws: ServerWebSocket<WebSocketData>) {
+        // Cleanup token check interval
+        const interval = (ws as unknown as { _tokenCheckInterval?: NodeJS.Timeout })
+          ._tokenCheckInterval;
+        if (interval) {
+          clearInterval(interval);
+        }
       },
     },
 

@@ -1,5 +1,6 @@
 import { Effect } from "effect";
-import { extractToken, setVerifiedUserId } from "./auth.ts";
+import { extractToken, getVerifiedUserId, setVerifiedUserId } from "./auth.ts";
+import { requireCsrfToken } from "./csrf.ts";
 import { verify } from "./jwt.ts";
 
 export type Middleware = (
@@ -137,6 +138,36 @@ export const requireAuthForAssets: Middleware = (req) =>
     } catch {
       return createRedirectResponse("/login");
     }
+  });
+
+/**
+ * CSRF protection middleware.
+ * Validates CSRF token for authenticated state-changing requests.
+ */
+export const requireCsrf: Middleware = (req) =>
+  Effect.gen(function* () {
+    const url = new URL(req.url);
+    const pathname = url.pathname;
+
+    // Only check CSRF for API routes (not app routes or assets)
+    if (!isApiRoute(pathname)) {
+      return null;
+    }
+
+    // Skip CSRF check for public routes
+    if (isPublicApiRoute(pathname)) {
+      return null;
+    }
+
+    // Get verified userId (must be authenticated at this point)
+    const userId: string = yield* Effect.catchAll(getVerifiedUserId(req), () =>
+      Effect.fail(new Error("User not authenticated"))
+    );
+
+    // Validate CSRF token
+    yield* requireCsrfToken(req, userId);
+
+    return null;
   });
 
 export const compose =

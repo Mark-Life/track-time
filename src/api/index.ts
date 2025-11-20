@@ -1,5 +1,12 @@
 import { isAuthError } from "~/lib/auth/auth.ts";
-import { handleLogin, handleLogout, handleMe, handleRegister } from "./auth.ts";
+import {
+  handleCsrfToken,
+  handleLogin,
+  handleLogout,
+  handleMe,
+  handleRefreshToken,
+  handleRegister,
+} from "./auth.ts";
 import {
   handleEntriesGet,
   handleEntryDelete,
@@ -114,6 +121,14 @@ const handleAuthRoutes = (url: URL, req: Request): Promise<Response> | null => {
 
   if (url.pathname === "/api/auth/me" && req.method === "GET") {
     return handleMe(req);
+  }
+
+  if (url.pathname === "/api/auth/csrf-token" && req.method === "GET") {
+    return handleCsrfToken(req);
+  }
+
+  if (url.pathname === "/api/auth/refresh-token" && req.method === "POST") {
+    return handleRefreshToken(req);
   }
 
   return null;

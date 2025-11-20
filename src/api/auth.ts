@@ -8,6 +8,7 @@ import {
   requireAuth,
   setAuthCookie,
 } from "~/lib/auth/auth";
+import { createCsrfToken, setCsrfCookie } from "~/lib/auth/csrf.ts";
 import { sign } from "~/lib/auth/jwt";
 import {
   rateLimitAuth,
@@ -76,7 +77,12 @@ export const handleRegister = (req: Request) =>
         },
       });
 
-      return setAuthCookie(response, token);
+      // Set auth cookie
+      const responseWithAuth = setAuthCookie(response, token);
+
+      // Generate and set CSRF token
+      const csrfToken = yield* createCsrfToken(user.id);
+      return setCsrfCookie(responseWithAuth, csrfToken);
     })
   ).catch((error) => {
     if (isAuthError(error)) {
@@ -125,7 +131,12 @@ export const handleLogin = (req: Request) =>
         },
       });
 
-      return setAuthCookie(response, token);
+      // Set auth cookie
+      const responseWithAuth = setAuthCookie(response, token);
+
+      // Generate and set CSRF token
+      const csrfToken = yield* createCsrfToken(user.id);
+      return setCsrfCookie(responseWithAuth, csrfToken);
     })
   ).catch((error) => {
     if (isAuthError(error)) {
@@ -170,13 +181,17 @@ export const handleMe = async (req: Request): Promise<Response> => {
           // TypeScript doesn't narrow after Effect.fail, so we assert non-null
           const userData = user as NonNullable<typeof user>;
 
-          return createAuthSuccessResponse({
+          const response = createAuthSuccessResponse({
             user: {
               id: userData.id,
               email: userData.email,
               createdAt: userData.createdAt,
             },
           });
+
+          // Generate and set CSRF token
+          const csrfToken = yield* createCsrfToken(userId);
+          return setCsrfCookie(response, csrfToken);
         })
       )(req)
     ).catch((error) => {
@@ -206,6 +221,118 @@ export const handleMe = async (req: Request): Promise<Response> => {
     return Response.json(
       {
         error: error instanceof Error ? error.message : "Internal Server Error",
+      },
+      { status: 500 }
+    );
+  }
+};
+
+/**
+ * Handles JWT token refresh request.
+ * Returns a new JWT token for the authenticated user.
+ */
+export const handleRefreshToken = async (req: Request): Promise<Response> => {
+  try {
+    return await Effect.runPromise(
+      requireAuth((_req, userId) =>
+        Effect.gen(function* () {
+          const user = yield* getUserById(userId);
+
+          if (!user) {
+            yield* Effect.fail(new AuthError("User not found"));
+          }
+
+          // TypeScript doesn't narrow after Effect.fail, so we assert non-null
+          const userData = user as NonNullable<typeof user>;
+
+          // Generate new JWT token
+          const token: string = yield* sign(
+            {
+              userId: userData.id,
+              email: userData.email,
+            },
+            7 * 24 * 60 * 60
+          );
+
+          const response = createAuthSuccessResponse({
+            token,
+            expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+          });
+
+          // Set auth cookie
+          const responseWithAuth = setAuthCookie(response, token);
+
+          // Generate and set CSRF token
+          const csrfToken = yield* createCsrfToken(userId);
+          return setCsrfCookie(responseWithAuth, csrfToken);
+        })
+      )(req)
+    ).catch((error) => {
+      if (isAuthError(error)) {
+        return createAuthErrorResponse(extractErrorMessage(error));
+      }
+
+      return Response.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Failed to refresh token",
+        },
+        { status: 500 }
+      );
+    });
+  } catch (error) {
+    if (isAuthError(error)) {
+      return createAuthErrorResponse(extractErrorMessage(error));
+    }
+    return Response.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to refresh token",
+      },
+      { status: 500 }
+    );
+  }
+};
+
+/**
+ * Handles CSRF token refresh request.
+ * Returns a new CSRF token for the authenticated user.
+ */
+export const handleCsrfToken = async (req: Request): Promise<Response> => {
+  try {
+    return await Effect.runPromise(
+      requireAuth((_req, userId) =>
+        Effect.gen(function* () {
+          const csrfToken = yield* createCsrfToken(userId);
+          const response = createAuthSuccessResponse({ csrfToken });
+          return setCsrfCookie(response, csrfToken);
+        })
+      )(req)
+    ).catch((error) => {
+      if (isAuthError(error)) {
+        return createAuthErrorResponse(extractErrorMessage(error));
+      }
+
+      return Response.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to generate CSRF token",
+        },
+        { status: 500 }
+      );
+    });
+  } catch (error) {
+    if (isAuthError(error)) {
+      return createAuthErrorResponse(extractErrorMessage(error));
+    }
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate CSRF token",
       },
       { status: 500 }
     );

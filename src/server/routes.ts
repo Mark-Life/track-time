@@ -7,12 +7,18 @@ import {
   compose,
   requireAuth,
   requireAuthForAssets,
+  requireCsrf,
 } from "../lib/auth/middleware.ts";
 import type { Server, WebSocketData } from "./types.ts";
 import { createRedirectResponse } from "./utils.ts";
 
 const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
-  const middlewareChain = compose(requireAuthForAssets, requireAuth);
+  // CSRF middleware runs after auth to ensure userId is available
+  const middlewareChain = compose(
+    requireAuthForAssets,
+    requireAuth,
+    requireCsrf
+  );
   const url = new URL(req.url);
   const pathname = url.pathname;
 
@@ -182,7 +188,10 @@ export const handleWebSocketUpgrade = async (
 
     const payload = await Effect.runPromise(verify(token));
     const upgraded = srv.upgrade(req, {
-      data: { userId: payload.userId } as WebSocketData,
+      data: {
+        userId: payload.userId,
+        tokenExp: payload.exp,
+      } as WebSocketData,
     });
 
     if (upgraded) {

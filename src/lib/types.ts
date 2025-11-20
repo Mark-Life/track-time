@@ -25,7 +25,10 @@ export type WebSocketMessage =
   | { type: "entry:updated"; data: { entry: Entry } }
   | { type: "project:created"; data: { project: Project } }
   | { type: "project:updated"; data: { project: Project } }
-  | { type: "project:deleted"; data: { id: string } };
+  | { type: "project:deleted"; data: { id: string } }
+  | { type: "auth:token-expiring"; data: { expiresAt: number } }
+  | { type: "auth:token-expired"; data: Record<string, never> }
+  | { type: "auth:refresh-token"; data: { token: string; expiresAt: number } };
 
 export type User = {
   id: string;
