@@ -9,31 +9,37 @@ import {
   setAuthCookie,
 } from "~/lib/auth/auth";
 import { sign } from "~/lib/auth/jwt";
-import { AuthError } from "~/lib/types.ts";
-import { authenticateUser, createUser, getUserById } from "~/lib/users.ts";
+import {
+  rateLimitAuth,
+  recordFailedAttempt,
+  recordSuccess,
+} from "~/lib/auth/rate-limit.ts";
+import { authenticateUser, createUser, getUserById } from "~/lib/auth/users";
+import { AuthError, type User } from "~/lib/types.ts";
 
 const parseAuthBody = (
   req: Request
 ): Effect.Effect<{ email: string; password: string }, Error> =>
   Effect.gen(function* () {
-    const body = yield* Effect.tryPromise({
-      try: () => req.json() as Promise<{ email: string; password: string }>,
+    const body: unknown = yield* Effect.tryPromise({
+      try: () => req.json(),
       catch: (error) => new Error(`Failed to parse request body: ${error}`),
     });
 
-    if (!body.email || typeof body.email !== "string") {
-      yield* Effect.fail(new Error("email is required and must be a string"));
-    }
-
-    if (!body.password || typeof body.password !== "string") {
-      yield* Effect.fail(
-        new Error("password is required and must be a string")
-      );
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("email" in body) ||
+      !("password" in body) ||
+      typeof body.email !== "string" ||
+      typeof body.password !== "string"
+    ) {
+      yield* Effect.fail(new Error("email and password are required strings"));
     }
 
     return {
-      email: body.email,
-      password: body.password,
+      email: (body as { email: string; password: string }).email,
+      password: (body as { email: string; password: string }).password,
     };
   });
 
@@ -42,9 +48,19 @@ export const handleRegister = (req: Request) =>
     Effect.gen(function* () {
       const { email, password } = yield* parseAuthBody(req);
 
-      const user = yield* createUser(email, password);
+      // Check rate limit before processing
+      yield* rateLimitAuth(req, email, "register");
 
-      const token = yield* sign(
+      // Attempt user creation, record failed attempt on error
+      const user: User = yield* Effect.tapError(
+        createUser(email, password),
+        () => recordFailedAttempt(req, email, "register")
+      );
+
+      // Record success and reset rate limit
+      yield* recordSuccess(req, email, "register");
+
+      const token: string = yield* sign(
         {
           userId: user.id,
           email: user.email,
@@ -81,9 +97,19 @@ export const handleLogin = (req: Request) =>
     Effect.gen(function* () {
       const { email, password } = yield* parseAuthBody(req);
 
-      const user = yield* authenticateUser(email, password);
+      // Check rate limit before processing
+      yield* rateLimitAuth(req, email, "login");
 
-      const token = yield* sign(
+      // Attempt authentication, record failed attempt on error
+      const user: User = yield* Effect.tapError(
+        authenticateUser(email, password),
+        () => recordFailedAttempt(req, email, "login")
+      );
+
+      // Record success and reset rate limit
+      yield* recordSuccess(req, email, "login");
+
+      const token: string = yield* sign(
         {
           userId: user.id,
           email: user.email,

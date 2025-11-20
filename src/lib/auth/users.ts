@@ -1,9 +1,32 @@
 import { redis } from "bun";
 import { Effect } from "effect";
-import type { User } from "./types.ts";
-import { AuthError } from "./types.ts";
+import type { User } from "~/lib/types.ts";
+import { AuthError } from "~/lib/types.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UPPERCASE_REGEX = /[A-Z]/;
+const LOWERCASE_REGEX = /[a-z]/;
+const NUMBER_REGEX = /[0-9]/;
+const SPECIAL_CHAR_REGEX = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/;
+const REPEATED_CHAR_REGEX = /(.)\1{4,}/;
+
+const COMMON_PASSWORDS = [
+  "password",
+  "password123",
+  "12345678",
+  "qwerty123",
+  "abc12345",
+  "letmein",
+  "welcome123",
+  "admin123",
+] as const;
+
+const SEQUENCES = [
+  "abcdefghijklmnopqrstuvwxyz",
+  "zyxwvutsrqponmlkjihgfedcba",
+  "0123456789",
+  "9876543210",
+] as const;
 
 const validateEmail = (email: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
@@ -12,13 +35,112 @@ const validateEmail = (email: string): Effect.Effect<void, Error> =>
     }
   });
 
-const validatePassword = (password: string): Effect.Effect<void, Error> =>
+/**
+ * Validates password length requirements.
+ */
+const validatePasswordLength = (password: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     if (password.length < 8) {
       yield* Effect.fail(
         new AuthError("Password must be at least 8 characters long")
       );
     }
+
+    if (password.length > 128) {
+      yield* Effect.fail(
+        new AuthError("Password must be no more than 128 characters long")
+      );
+    }
+  });
+
+/**
+ * Validates password character requirements.
+ */
+const validatePasswordChars = (password: string): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    if (!UPPERCASE_REGEX.test(password)) {
+      yield* Effect.fail(
+        new AuthError("Password must contain at least one uppercase letter")
+      );
+    }
+
+    if (!LOWERCASE_REGEX.test(password)) {
+      yield* Effect.fail(
+        new AuthError("Password must contain at least one lowercase letter")
+      );
+    }
+
+    if (!NUMBER_REGEX.test(password)) {
+      yield* Effect.fail(
+        new AuthError("Password must contain at least one number")
+      );
+    }
+
+    if (!SPECIAL_CHAR_REGEX.test(password)) {
+      yield* Effect.fail(
+        new AuthError(
+          "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;':\",./<>?)"
+        )
+      );
+    }
+  });
+
+/**
+ * Validates password against common weak patterns.
+ */
+const validatePasswordStrength = (
+  password: string
+): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    const passwordLower = password.toLowerCase();
+
+    // Check for common weak passwords
+    if (COMMON_PASSWORDS.some((weak) => passwordLower.includes(weak))) {
+      yield* Effect.fail(
+        new AuthError(
+          "Password is too common or weak. Please choose a stronger password"
+        )
+      );
+    }
+
+    // Check for repeated characters (e.g., "aaaaaa", "11111111")
+    if (REPEATED_CHAR_REGEX.test(password)) {
+      yield* Effect.fail(
+        new AuthError("Password contains too many repeated characters")
+      );
+    }
+
+    // Check for sequential characters (e.g., "abcdef", "123456")
+    for (const seq of SEQUENCES) {
+      for (let i = 0; i <= seq.length - 4; i++) {
+        const subseq = seq.slice(i, i + 4);
+        if (passwordLower.includes(subseq)) {
+          yield* Effect.fail(
+            new AuthError(
+              "Password contains sequential characters. Please choose a stronger password"
+            )
+          );
+        }
+      }
+    }
+  });
+
+/**
+ * Validates password strength and complexity requirements.
+ * Requirements:
+ * - Minimum 8 characters
+ * - Maximum 128 characters (prevent DoS)
+ * - At least one uppercase letter
+ * - At least one lowercase letter
+ * - At least one number
+ * - At least one special character
+ * - Not a common weak password
+ */
+const validatePassword = (password: string): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    yield* validatePasswordLength(password);
+    yield* validatePasswordChars(password);
+    yield* validatePasswordStrength(password);
   });
 
 const normalizeEmail = (email: string): string => email.toLowerCase().trim();
