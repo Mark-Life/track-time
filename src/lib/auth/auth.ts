@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { JWTPayload } from "../types.ts";
-import { AuthError } from "../types.ts";
+import { AuthError, CsrfError } from "../types.ts";
 import { verify } from "./jwt.ts";
 
 // WeakMap to store verified userId per request (set by middleware)
@@ -165,6 +165,29 @@ export const isAuthError = (error: unknown): error is AuthError => {
       "Token expired",
     ];
     if (authKeywords.some((keyword) => errorStr.includes(keyword))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+export const isCsrfError = (error: unknown): error is CsrfError => {
+  const unwrapped = unwrapFiberFailure(error);
+
+  // Check unwrapped error
+  if (unwrapped instanceof CsrfError) {
+    return true;
+  }
+  if (unwrapped instanceof Error && unwrapped.name === "CsrfError") {
+    return true;
+  }
+
+  // Check original error's string representation for CSRF-related messages
+  if (error instanceof Error) {
+    const errorStr = error.toString();
+    const csrfKeywords = ["CsrfError", "CSRF token", "csrf token"];
+    if (csrfKeywords.some((keyword) => errorStr.includes(keyword))) {
       return true;
     }
   }

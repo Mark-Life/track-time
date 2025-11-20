@@ -1,6 +1,6 @@
 import { redis } from "bun";
 import { Effect } from "effect";
-import { AuthError } from "../types.ts";
+import { CsrfError } from "../types.ts";
 
 /**
  * CSRF token expiration time (1 hour)
@@ -149,14 +149,14 @@ export const requireCsrfToken = (
     const token = yield* extractCsrfToken(req);
     if (!token) {
       yield* Effect.fail(
-        new AuthError("CSRF token missing. Please refresh the page.")
+        new CsrfError("CSRF token missing. Please refresh the page.")
       );
     }
 
     const isValid = yield* validateCsrfToken(userId, token as string);
     if (!isValid) {
       yield* Effect.fail(
-        new AuthError("Invalid CSRF token. Please refresh the page.")
+        new CsrfError("Invalid CSRF token. Please refresh the page.")
       );
     }
   });

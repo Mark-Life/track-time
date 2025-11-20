@@ -1,4 +1,4 @@
-import { isAuthError } from "~/lib/auth/auth.ts";
+import { isAuthError, isCsrfError } from "~/lib/auth/auth.ts";
 import {
   handleCsrfToken,
   handleLogin,
@@ -137,7 +137,14 @@ const handleAuthRoutes = (url: URL, req: Request): Promise<Response> | null => {
 const safePromise = (promise: Promise<Response>): Promise<Response> =>
   promise.catch((error) => {
     console.error("Unhandled API error:", error);
-    // Check if it's an auth error even in the safety net
+    // Check if it's a CSRF error - return 403
+    if (isCsrfError(error)) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "CSRF token required" },
+        { status: 403 }
+      );
+    }
+    // Check if it's an auth error - return 401
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
     }

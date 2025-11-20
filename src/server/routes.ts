@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { Effect } from "effect";
 import { handleApiRequest } from "../api/index.ts";
-import { extractToken } from "../lib/auth/auth.ts";
+import { extractToken, isCsrfError } from "../lib/auth/auth.ts";
 import { verify } from "../lib/auth/jwt.ts";
 import {
   compose,
@@ -23,7 +23,21 @@ const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
   const pathname = url.pathname;
 
   return await Effect.runPromise(
-    Effect.catchAll(middlewareChain(req), () => {
+    Effect.catchAll(middlewareChain(req), (error) => {
+      // Handle CSRF errors separately - return 403 for API routes
+      if (isCsrfError(error)) {
+        if (pathname.startsWith("/api")) {
+          return Effect.succeed(
+            Response.json(
+              { error: error instanceof Error ? error.message : "CSRF token required" },
+              { status: 403 }
+            )
+          );
+        }
+        // For non-API routes, still redirect (shouldn't happen in practice)
+        return Effect.succeed(createRedirectResponse("/login"));
+      }
+
       // If middleware threw an error, default based on route type
       if (pathname.startsWith("/api")) {
         return Effect.succeed(

@@ -10,11 +10,75 @@ import {
 } from "~/lib/local-storage.ts";
 import type { Entry, Project, Timer } from "~/lib/types.ts";
 
+/**
+ * Gets CSRF token from cookies.
+ */
+const getCsrfTokenFromCookie = (): string | null => {
+  const cookies = document.cookie.split(";").map((c) => c.trim());
+  for (const cookie of cookies) {
+    const [name, ...valueParts] = cookie.split("=");
+    if (name === "csrf-token" && valueParts.length > 0) {
+      return decodeURIComponent(valueParts.join("="));
+    }
+  }
+  return null;
+};
+
+/**
+ * Fetches a new CSRF token from the server.
+ */
+const refreshCsrfToken = (): Effect.Effect<string, Error> =>
+  Effect.gen(function* () {
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch("/api/auth/csrf-token", {
+          method: "GET",
+          credentials: "include",
+        }),
+      catch: (error) => new Error(`Failed to fetch CSRF token: ${error}`),
+    });
+
+    if (!response.ok) {
+      yield* Effect.fail(new Error("Failed to refresh CSRF token"));
+    }
+
+    const data = yield* Effect.tryPromise({
+      try: () => response.json() as Promise<{ csrfToken: string }>,
+      catch: (error) =>
+        new Error(`Failed to parse CSRF token response: ${error}`),
+    });
+
+    return data.csrfToken;
+  });
+
+/**
+ * Handles authentication errors (401) by redirecting to login.
+ */
 const handleAuthError = (response: Response): void => {
   if (response.status === 401) {
     window.location.href = "/login";
   }
 };
+
+/**
+ * Handles CSRF errors (403) by refreshing the token and retrying the request.
+ * Returns the retried response.
+ */
+const handleCsrfError = (
+  response: Response,
+  retryFn: (csrfToken: string) => Effect.Effect<Response, Error>
+): Effect.Effect<Response, Error> =>
+  Effect.gen(function* () {
+    if (response.status !== 403) {
+      yield* Effect.fail(new Error(`Unexpected status: ${response.status}`));
+    }
+
+    // Refresh CSRF token
+    const newCsrfToken = yield* refreshCsrfToken();
+
+    // Retry the request with the new token
+    return yield* retryFn(newCsrfToken);
+  });
 
 export const getTimer = Effect.gen(function* () {
   if (!navigator.onLine) {
@@ -54,31 +118,49 @@ export const startTimer = (startedAt?: string, projectId?: string) =>
       return timer;
     }
 
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        fetch("/api/timer/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            startedAt: timerStartedAt,
-            ...(projectId ? { projectId } : {}),
-          }),
-        }),
-      catch: (error) => {
-        Effect.runSync(saveTimerToLocal(timer));
-        return new Error(`Failed to start timer: ${error}`);
-      },
-    });
+    const makeStartRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch("/api/timer/start", {
+            method: "POST",
+            headers,
+            credentials: "include",
+            body: JSON.stringify({
+              startedAt: timerStartedAt,
+              ...(projectId ? { projectId } : {}),
+            }),
+          });
+        },
+        catch: (error) => {
+          Effect.runSync(saveTimerToLocal(timer));
+          return new Error(`Failed to start timer: ${error}`);
+        },
+      });
 
-    if (!response.ok) {
-      handleAuthError(response);
+    const csrfToken = getCsrfTokenFromCookie();
+    let timerResponse = yield* makeStartRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (timerResponse.status === 403) {
+      timerResponse = yield* handleCsrfError(timerResponse, (newCsrfToken) =>
+        makeStartRequest(newCsrfToken)
+      );
+    }
+
+    if (!timerResponse.ok) {
+      handleAuthError(timerResponse);
       yield* saveTimerToLocal(timer);
       return timer;
     }
 
-    const serverTimer = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<Timer>,
+    const serverTimer: Timer = yield* Effect.tryPromise({
+      try: () => timerResponse.json() as Promise<Timer>,
       catch: (error) => {
         Effect.runSync(saveTimerToLocal(timer));
         return new Error(`Failed to parse timer JSON: ${error}`);
@@ -123,25 +205,45 @@ export const stopTimer = Effect.gen(function* () {
     return entry;
   }
 
-  const response = yield* Effect.tryPromise({
-    try: () =>
-      fetch("/api/timer/stop", { method: "POST", credentials: "include" }),
-    catch: (error) => {
-      Effect.runSync(saveEntryToLocal(entry));
-      Effect.runSync(clearLocalTimer());
-      return new Error(`Failed to stop timer: ${error}`);
-    },
-  });
+  const makeStopRequest = (token: string | null) =>
+    Effect.tryPromise({
+      try: () => {
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers["X-CSRF-Token"] = token;
+        }
+        return fetch("/api/timer/stop", {
+          method: "POST",
+          headers,
+          credentials: "include",
+        });
+      },
+      catch: (error) => {
+        Effect.runSync(saveEntryToLocal(entry));
+        Effect.runSync(clearLocalTimer());
+        return new Error(`Failed to stop timer: ${error}`);
+      },
+    });
 
-  if (!response.ok) {
-    handleAuthError(response);
+  const csrfToken = getCsrfTokenFromCookie();
+  let stopResponse = yield* makeStopRequest(csrfToken);
+
+  // Handle CSRF error (403) by refreshing token and retrying
+  if (stopResponse.status === 403) {
+    stopResponse = yield* handleCsrfError(stopResponse, (newCsrfToken) =>
+      makeStopRequest(newCsrfToken)
+    );
+  }
+
+  if (!stopResponse.ok) {
+    handleAuthError(stopResponse);
     yield* saveEntryToLocal(entry);
     yield* clearLocalTimer();
     return entry;
   }
 
-  const serverEntry = yield* Effect.tryPromise({
-    try: () => response.json() as Promise<Entry>,
+  const serverEntry: Entry = yield* Effect.tryPromise({
+    try: () => stopResponse.json() as Promise<Entry>,
     catch: (error) => {
       Effect.runSync(saveEntryToLocal(entry));
       Effect.runSync(clearLocalTimer());
@@ -211,32 +313,50 @@ export const updateEntry = (
       return entry;
     }
 
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(`/api/entries/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            startedAt,
-            endedAt,
-            ...(projectId ? { projectId } : {}),
-          }),
-        }),
-      catch: (error) => {
-        Effect.runSync(updateLocalEntry(entry));
-        return new Error(`Failed to update entry: ${error}`);
-      },
-    });
+    const makeUpdateRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch(`/api/entries/${id}`, {
+            method: "PUT",
+            headers,
+            credentials: "include",
+            body: JSON.stringify({
+              startedAt,
+              endedAt,
+              ...(projectId ? { projectId } : {}),
+            }),
+          });
+        },
+        catch: (error) => {
+          Effect.runSync(updateLocalEntry(entry));
+          return new Error(`Failed to update entry: ${error}`);
+        },
+      });
 
-    if (!response.ok) {
-      handleAuthError(response);
+    const csrfToken = getCsrfTokenFromCookie();
+    let updateResponse = yield* makeUpdateRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (updateResponse.status === 403) {
+      updateResponse = yield* handleCsrfError(updateResponse, (newCsrfToken) =>
+        makeUpdateRequest(newCsrfToken)
+      );
+    }
+
+    if (!updateResponse.ok) {
+      handleAuthError(updateResponse);
       yield* updateLocalEntry(entry);
       return entry;
     }
 
-    const serverEntry = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<Entry>,
+    const serverEntry: Entry = yield* Effect.tryPromise({
+      try: () => updateResponse.json() as Promise<Entry>,
       catch: (error) => {
         Effect.runSync(updateLocalEntry(entry));
         return new Error(`Failed to parse entry JSON: ${error}`);
@@ -255,20 +375,37 @@ export const deleteEntry = (id: string) =>
       return;
     }
 
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(`/api/entries/${id}`, {
-          method: "DELETE",
-          credentials: "include",
-        }),
-      catch: (error) => {
-        Effect.runSync(clearSyncedEntry(id));
-        return new Error(`Failed to delete entry: ${error}`);
-      },
-    });
+    const makeDeleteEntryRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch(`/api/entries/${id}`, {
+            method: "DELETE",
+            headers,
+            credentials: "include",
+          });
+        },
+        catch: (error) => {
+          Effect.runSync(clearSyncedEntry(id));
+          return new Error(`Failed to delete entry: ${error}`);
+        },
+      });
 
-    if (!response.ok) {
-      handleAuthError(response);
+    const csrfToken = getCsrfTokenFromCookie();
+    let deleteResponse = yield* makeDeleteEntryRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (deleteResponse.status === 403) {
+      deleteResponse = yield* handleCsrfError(deleteResponse, (newCsrfToken) =>
+        makeDeleteEntryRequest(newCsrfToken)
+      );
+    }
+
+    if (!deleteResponse.ok) {
+      handleAuthError(deleteResponse);
       yield* clearSyncedEntry(id);
       return;
     }
@@ -307,28 +444,46 @@ export const createProject = (name: string) =>
       yield* Effect.fail(new Error("Cannot create project while offline"));
     }
 
-    const response: Response = yield* Effect.tryPromise({
-      try: () =>
-        fetch("/api/projects", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ name }),
-        }),
-      catch: (error) => new Error(`Failed to create project: ${error}`),
-    });
+    const makeCreateProjectRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch("/api/projects", {
+            method: "POST",
+            headers,
+            credentials: "include",
+            body: JSON.stringify({ name }),
+          });
+        },
+        catch: (error) => new Error(`Failed to create project: ${error}`),
+      });
 
-    if (!response.ok) {
-      handleAuthError(response);
+    const csrfToken = getCsrfTokenFromCookie();
+    let createResponse: Response = yield* makeCreateProjectRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (createResponse.status === 403) {
+      createResponse = yield* handleCsrfError(createResponse, (newCsrfToken) =>
+        makeCreateProjectRequest(newCsrfToken)
+      );
+    }
+
+    if (!createResponse.ok) {
+      handleAuthError(createResponse);
       const errorData = yield* Effect.tryPromise({
-        try: () => response.json() as Promise<{ error: string }>,
+        try: () => createResponse.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to create project" }),
       });
       yield* Effect.fail(new Error(errorData.error));
     }
 
     const project: Project = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<Project>,
+      try: () => createResponse.json() as Promise<Project>,
       catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
     });
 
@@ -341,28 +496,46 @@ export const updateProject = (id: string, name: string) =>
       yield* Effect.fail(new Error("Cannot update project while offline"));
     }
 
-    const response: Response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(`/api/projects/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ name }),
-        }),
-      catch: (error) => new Error(`Failed to update project: ${error}`),
-    });
+    const makeUpdateProjectRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch(`/api/projects/${id}`, {
+            method: "PUT",
+            headers,
+            credentials: "include",
+            body: JSON.stringify({ name }),
+          });
+        },
+        catch: (error) => new Error(`Failed to update project: ${error}`),
+      });
 
-    if (!response.ok) {
-      handleAuthError(response);
+    const csrfToken = getCsrfTokenFromCookie();
+    let updateResponse: Response = yield* makeUpdateProjectRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (updateResponse.status === 403) {
+      updateResponse = yield* handleCsrfError(updateResponse, (newCsrfToken) =>
+        makeUpdateProjectRequest(newCsrfToken)
+      );
+    }
+
+    if (!updateResponse.ok) {
+      handleAuthError(updateResponse);
       const errorData = yield* Effect.tryPromise({
-        try: () => response.json() as Promise<{ error: string }>,
+        try: () => updateResponse.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to update project" }),
       });
       yield* Effect.fail(new Error(errorData.error));
     }
 
     const project: Project = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<Project>,
+      try: () => updateResponse.json() as Promise<Project>,
       catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
     });
 
@@ -375,19 +548,36 @@ export const deleteProject = (id: string, deleteEntries: boolean) =>
       yield* Effect.fail(new Error("Cannot delete project while offline"));
     }
 
-    const response: Response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(`/api/projects/${id}?deleteEntries=${deleteEntries}`, {
-          method: "DELETE",
-          credentials: "include",
-        }),
-      catch: (error) => new Error(`Failed to delete project: ${error}`),
-    });
+    const makeDeleteProjectRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch(`/api/projects/${id}?deleteEntries=${deleteEntries}`, {
+            method: "DELETE",
+            headers,
+            credentials: "include",
+          });
+        },
+        catch: (error) => new Error(`Failed to delete project: ${error}`),
+      });
 
-    if (!response.ok) {
-      handleAuthError(response);
+    const csrfToken = getCsrfTokenFromCookie();
+    let deleteResponse: Response = yield* makeDeleteProjectRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (deleteResponse.status === 403) {
+      deleteResponse = yield* handleCsrfError(deleteResponse, (newCsrfToken) =>
+        makeDeleteProjectRequest(newCsrfToken)
+      );
+    }
+
+    if (!deleteResponse.ok) {
+      handleAuthError(deleteResponse);
       const errorData = yield* Effect.tryPromise({
-        try: () => response.json() as Promise<{ error: string }>,
+        try: () => deleteResponse.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to delete project" }),
       });
       yield* Effect.fail(new Error(errorData.error));
