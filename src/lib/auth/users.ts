@@ -145,6 +145,11 @@ const validatePassword = (password: string): Effect.Effect<void, Error> =>
 
 const normalizeEmail = (email: string): string => email.toLowerCase().trim();
 
+/**
+ * Atomically creates a user, preventing race conditions.
+ * Uses SADD which atomically checks and adds email to set.
+ * Returns 1 if email was added (didn't exist), 0 if already exists.
+ */
 export const createUser = (
   email: string,
   password: string
@@ -155,16 +160,8 @@ export const createUser = (
 
     const normalizedEmail = normalizeEmail(email);
 
-    const exists = yield* Effect.tryPromise({
-      try: () => redis.sismember("users:emails", normalizedEmail),
-      catch: (error) => new Error(`Failed to check email existence: ${error}`),
-    });
-
-    if (exists) {
-      yield* Effect.fail(new AuthError("Email already registered"));
-    }
-
-    const passwordHash = yield* Effect.tryPromise({
+    // Hash password before atomic operation
+    const passwordHash: string = yield* Effect.tryPromise({
       try: () => Bun.password.hash(password),
       catch: (error) => new Error(`Failed to hash password: ${error}`),
     });
@@ -172,32 +169,67 @@ export const createUser = (
     const userId = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
+    // Atomically check and add email to set
+    // SADD returns 1 if element was added (didn't exist), 0 if already exists
+    // This is atomic and prevents race conditions - only one request can add the email
+    const emailAdded: number = yield* Effect.tryPromise({
+      try: () => redis.sadd("users:emails", normalizedEmail),
+      catch: (error) =>
+        new Error(`Failed to check/add email atomically: ${error}`),
+    });
+
+    if (emailAdded === 0) {
+      // Email already exists - race condition prevented
+      yield* Effect.fail(new AuthError("Email already registered"));
+    }
+
+    // Email was successfully reserved atomically, now create user data
+    // If creation fails, attempt cleanup (best effort)
+    yield* Effect.catchAll(
+      Effect.gen(function* () {
+        yield* Effect.tryPromise({
+          try: () =>
+            redis.hset(`user:${userId}`, {
+              id: userId,
+              email: normalizedEmail,
+              createdAt,
+              passwordHash,
+            }),
+          catch: (error) => new Error(`Failed to create user: ${error}`),
+        });
+
+        yield* Effect.tryPromise({
+          try: () =>
+            redis.hset(`user:email:${normalizedEmail}`, { id: userId }),
+          catch: (error) =>
+            new Error(`Failed to create email mapping: ${error}`),
+        });
+      }),
+      (error) =>
+        Effect.gen(function* () {
+          // Cleanup: remove email from set if user creation failed (best effort)
+          // Use Effect.ignore to ignore cleanup errors
+          yield* Effect.ignore(
+            Effect.tryPromise({
+              try: () => redis.srem("users:emails", normalizedEmail),
+              catch: (cleanupError) => {
+                console.error(
+                  `Warning: Failed to cleanup email from set after user creation failure: ${normalizedEmail}`,
+                  cleanupError
+                );
+                return new Error("Cleanup failed");
+              },
+            })
+          );
+          return yield* Effect.fail(error);
+        })
+    );
+
     const user: User = {
       id: userId,
       email: normalizedEmail,
       createdAt,
     };
-
-    yield* Effect.tryPromise({
-      try: () =>
-        redis.hset(`user:${userId}`, {
-          id: userId,
-          email: normalizedEmail,
-          createdAt,
-          passwordHash,
-        }),
-      catch: (error) => new Error(`Failed to create user: ${error}`),
-    });
-
-    yield* Effect.tryPromise({
-      try: () => redis.sadd("users:emails", normalizedEmail),
-      catch: (error) => new Error(`Failed to add email to index: ${error}`),
-    });
-
-    yield* Effect.tryPromise({
-      try: () => redis.hset(`user:email:${normalizedEmail}`, { id: userId }),
-      catch: (error) => new Error(`Failed to create email mapping: ${error}`),
-    });
 
     yield* Effect.log(`✅ Created user: ${normalizedEmail} (${userId})`);
 
