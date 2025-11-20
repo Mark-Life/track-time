@@ -20,6 +20,7 @@ export type Entry = {
 
 export type WebSocketMessage =
   | { type: "timer:started"; data: { startedAt: string; projectId?: string } }
+  | { type: "timer:updated"; data: { startedAt: string; projectId?: string } }
   | { type: "timer:stopped"; data: { entry: Entry } }
   | { type: "entry:deleted"; data: { id: string } }
   | { type: "entry:updated"; data: { entry: Entry } }

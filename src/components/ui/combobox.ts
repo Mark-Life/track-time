@@ -116,10 +116,26 @@ export const createCombobox = <T = string>(
     const selectOption = (option: ComboboxOption<T> | undefined) => {
       if (option) {
         input.value = option.label;
-        Effect.runPromise(config.onSelect(option.value));
+        Effect.runPromise(
+          Effect.catchAll(config.onSelect(option.value), (error) =>
+            Effect.gen(function* () {
+              yield* Effect.logError(
+                `Combobox onSelect error: ${error instanceof Error ? error.message : String(error)}`
+              );
+            })
+          )
+        );
       } else {
         input.value = "";
-        Effect.runPromise(config.onSelect(undefined));
+        Effect.runPromise(
+          Effect.catchAll(config.onSelect(undefined), (error) =>
+            Effect.gen(function* () {
+              yield* Effect.logError(
+                `Combobox onSelect error: ${error instanceof Error ? error.message : String(error)}`
+              );
+            })
+          )
+        );
       }
       close();
     };

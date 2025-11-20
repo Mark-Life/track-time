@@ -34,8 +34,11 @@ export const syncWithServer = (
         }
       }
 
-      // Start timer on server with local timer's startedAt to preserve original start time
-      const syncedTimer = yield* startTimer(localTimer.startedAt);
+      // Start timer on server with local timer's startedAt and projectId to preserve original values
+      const syncedTimer = yield* startTimer(
+        localTimer.startedAt,
+        localTimer.projectId
+      );
       yield* clearLocalTimer();
 
       // Use synced timer in ref (should match local timer's startedAt)

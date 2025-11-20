@@ -20,6 +20,7 @@ import {
   startTimer,
   stopTimer,
   updateEntry,
+  updateTimer,
 } from "./api.ts";
 import {
   addEntryToList,
@@ -184,12 +185,15 @@ window.addEventListener("unload", () => {
 // Project management functions
 const populateProjectCombobox = (projects: Project[], selectedId?: string) =>
   Effect.gen(function* () {
-    const options: ComboboxOption<string>[] = projects.map((project) => ({
-      value: project.id,
-      label: project.name,
-    }));
+    const options: ComboboxOption<string>[] = [
+      { value: "", label: "No project" },
+      ...projects.map((project) => ({
+        value: project.id,
+        label: project.name,
+      })),
+    ];
     yield* updateComboboxOptions("project-combobox", options);
-    yield* setComboboxValue("project-combobox", selectedId);
+    yield* setComboboxValue("project-combobox", selectedId ?? "");
   });
 
 const loadProjects = Effect.gen(function* () {
@@ -323,7 +327,24 @@ const initializeApp = Effect.gen(function* () {
     emptyText: "No projects found",
     onSelect: (value) =>
       Effect.gen(function* () {
-        yield* Ref.set(selectedProjectIdRef, value);
+        // Convert empty string to undefined for "No project"
+        const projectId = value === "" ? undefined : value;
+        yield* Effect.log(
+          `Project selected: ${projectId ?? "none"} (${projectId ? "setting project" : "clearing project"})`
+        );
+        yield* Ref.set(selectedProjectIdRef, projectId);
+        // If timer is running, update it with the new project
+        const timer = yield* Ref.get(timerRef);
+        if (timer) {
+          yield* Effect.log(
+            `Timer is running, updating project from ${timer.projectId ?? "none"} to ${projectId ?? "none"}`
+          );
+          const updatedTimer = yield* updateTimer(projectId);
+          yield* Ref.set(timerRef, updatedTimer);
+          yield* Effect.log(`Timer updated successfully`);
+        } else {
+          yield* Effect.log(`No active timer, skipping update`);
+        }
       }),
   });
 
@@ -435,6 +456,23 @@ const initializeApp = Effect.gen(function* () {
             yield* startTimerUI(timerRef, intervalRef);
           }),
           (error) => Effect.logError(`Failed to handle timer:started: ${error}`)
+        )
+      );
+    } else if (message.type === "timer:updated") {
+      const startedAt = message.data.startedAt;
+      const projectId = message.data.projectId;
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            yield* Ref.set(timerRef, {
+              startedAt,
+              ...(projectId ? { projectId } : {}),
+            });
+            yield* Ref.set(selectedProjectIdRef, projectId);
+            const currentProjects = yield* Ref.get(projectsRef);
+            yield* populateProjectCombobox(currentProjects, projectId);
+          }),
+          (error) => Effect.logError(`Failed to handle timer:updated: ${error}`)
         )
       );
     } else if (message.type === "project:created") {

@@ -62,6 +62,37 @@ export const startTimer = (
   });
 
 /**
+ * Update timer project
+ */
+export const updateTimerProject = (
+  userId: string,
+  projectId?: string
+): Effect.Effect<Timer, Error, Redis> =>
+  Effect.gen(function* () {
+    const redis = yield* Redis;
+    const timer: Timer | null = yield* getActiveTimer(userId);
+    if (!timer) {
+      return yield* Effect.fail(new Error("No active timer"));
+    }
+
+    const timerData: Record<string, string> = {
+      startedAt: timer.startedAt,
+      ...(projectId ? { projectId } : {}),
+    };
+
+    yield* redis.hset(userKey(userId, "active:timer"), timerData);
+
+    yield* Effect.log(
+      `🔄 Timer project updated${projectId ? ` to ${projectId}` : " (removed)"}`
+    );
+
+    return {
+      startedAt: timer.startedAt,
+      ...(projectId ? { projectId } : {}),
+    };
+  });
+
+/**
  * Stop timer and save entry
  */
 export const stopTimer = (

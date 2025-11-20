@@ -6,6 +6,7 @@ export {
   getActiveTimer,
   startTimer,
   stopTimer,
+  updateTimerProject,
 } from "./service/timer.ts";
 
 // Entry operations

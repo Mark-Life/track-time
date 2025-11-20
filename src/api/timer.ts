@@ -1,6 +1,12 @@
 import { Effect } from "effect";
 import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
-import { getActiveTimer, RedisLive, startTimer, stopTimer } from "~/lib/redis";
+import {
+  getActiveTimer,
+  RedisLive,
+  startTimer,
+  stopTimer,
+  updateTimerProject,
+} from "~/lib/redis";
 import type { WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -31,11 +37,33 @@ const validateStartedAt = (startedAt: string): Response | null => {
   return null;
 };
 
+const parseTimerUpdateBody = (
+  req: Request
+): Effect.Effect<{ projectId?: string } | undefined, Error> =>
+  Effect.tryPromise({
+    try: () =>
+      req.json() as Promise<{
+        projectId?: string;
+      }>,
+    catch: () => new Error("Failed to parse body"),
+  }).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+
 const createTimerStartedMessage = (timer: {
   startedAt: string;
   projectId?: string;
 }): WebSocketMessage => ({
   type: "timer:started",
+  data: {
+    startedAt: timer.startedAt,
+    ...(timer.projectId ? { projectId: timer.projectId } : {}),
+  },
+});
+
+const createTimerUpdatedMessage = (timer: {
+  startedAt: string;
+  projectId?: string;
+}): WebSocketMessage => ({
+  type: "timer:updated",
   data: {
     startedAt: timer.startedAt,
     ...(timer.projectId ? { projectId: timer.projectId } : {}),
@@ -105,6 +133,48 @@ export const handleTimerStart = (req: Request, server: Server) =>
     return Response.json(
       {
         error: error instanceof Error ? error.message : "Failed to start timer",
+      },
+      { status: 500 }
+    );
+  });
+
+export const handleTimerUpdate = (req: Request, server: Server) =>
+  Effect.runPromise(
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const body = yield* parseTimerUpdateBody(req);
+
+          yield* Effect.log(
+            `🔄 Timer update requested for user ${userId}${body?.projectId ? ` with project ${body.projectId}` : " (removing project)"}`
+          );
+
+          const timer = yield* updateTimerProject(userId, body?.projectId);
+
+          const message = createTimerUpdatedMessage(timer);
+          server.publish(
+            `user:${userId}:timer:updates`,
+            JSON.stringify(message)
+          );
+
+          yield* Effect.log(
+            `✅ Timer updated for user ${userId}${timer.projectId ? ` - Project: ${timer.projectId}` : " - No project"}`
+          );
+
+          return Response.json(timer);
+        })
+      ),
+      RedisLive
+    )
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return Response.json({ error: error.message }, { status: 401 });
+    }
+    return Response.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to update timer",
       },
       { status: 500 }
     );

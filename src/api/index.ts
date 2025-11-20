@@ -18,7 +18,12 @@ import {
   handleProjectsGet,
   handleProjectUpdate,
 } from "./projects.ts";
-import { handleTimerGet, handleTimerStart, handleTimerStop } from "./timer.ts";
+import {
+  handleTimerGet,
+  handleTimerStart,
+  handleTimerStop,
+  handleTimerUpdate,
+} from "./timer.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
 
@@ -36,6 +41,10 @@ const handleTimerRoutes = (
 
   if (url.pathname === "/api/timer/start" && req.method === "POST") {
     return handleTimerStart(req, server);
+  }
+
+  if (url.pathname === "/api/timer/update" && req.method === "PUT") {
+    return handleTimerUpdate(req, server);
   }
 
   if (url.pathname === "/api/timer/stop" && req.method === "POST") {

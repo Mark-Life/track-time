@@ -29,7 +29,7 @@ const getCsrfTokenFromCookie = (): string | null => {
  */
 const refreshCsrfToken = (): Effect.Effect<string, Error> =>
   Effect.gen(function* () {
-    const response = yield* Effect.tryPromise({
+    const response: Response = yield* Effect.tryPromise({
       try: () =>
         fetch("/api/auth/csrf-token", {
           method: "GET",
@@ -254,6 +254,93 @@ export const stopTimer = Effect.gen(function* () {
   yield* clearLocalTimer();
   return serverEntry;
 });
+
+export const updateTimer = (projectId?: string) =>
+  Effect.gen(function* () {
+    yield* Effect.log(
+      `updateTimer called with projectId: ${projectId ?? "undefined"}`
+    );
+    // Get current timer to preserve startedAt
+    const currentTimer = navigator.onLine
+      ? yield* getTimer
+      : yield* getTimerFromLocal();
+
+    if (!currentTimer) {
+      yield* Effect.log("No active timer found, cannot update");
+      yield* Effect.fail(new Error("No active timer"));
+      return;
+    }
+
+    yield* Effect.log(
+      `Current timer found: startedAt=${currentTimer.startedAt}, projectId=${currentTimer.projectId ?? "none"}`
+    );
+
+    const timer: Timer = {
+      startedAt: currentTimer.startedAt,
+      ...(projectId ? { projectId } : {}),
+    };
+
+    if (!navigator.onLine) {
+      yield* saveTimerToLocal(timer);
+      return timer;
+    }
+
+    yield* Effect.log(
+      `Making PUT request to /api/timer/update with projectId: ${projectId ?? "undefined"}`
+    );
+
+    const makeUpdateRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch("/api/timer/update", {
+            method: "PUT",
+            headers,
+            credentials: "include",
+            body: JSON.stringify({
+              ...(projectId ? { projectId } : {}),
+            }),
+          });
+        },
+        catch: (error) => {
+          Effect.runSync(saveTimerToLocal(timer));
+          return new Error(`Failed to update timer: ${error}`);
+        },
+      });
+
+    const csrfToken = getCsrfTokenFromCookie();
+    let updateResponse = yield* makeUpdateRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (updateResponse.status === 403) {
+      updateResponse = yield* handleCsrfError(updateResponse, (newCsrfToken) =>
+        makeUpdateRequest(newCsrfToken)
+      );
+    }
+
+    if (!updateResponse.ok) {
+      handleAuthError(updateResponse);
+      yield* saveTimerToLocal(timer);
+      return timer;
+    }
+
+    const serverTimer: Timer = yield* Effect.tryPromise({
+      try: () => updateResponse.json() as Promise<Timer>,
+      catch: (error) => {
+        Effect.runSync(saveTimerToLocal(timer));
+        return new Error(`Failed to parse timer JSON: ${error}`);
+      },
+    });
+
+    // Update local storage with server timer
+    yield* saveTimerToLocal(serverTimer);
+    return serverTimer;
+  });
 
 export const getEntries = Effect.gen(function* () {
   const localEntries = yield* getLocalEntries();
