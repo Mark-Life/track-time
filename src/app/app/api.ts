@@ -346,7 +346,11 @@ export const getEntries = Effect.gen(function* () {
   const localEntries = yield* getLocalEntries();
 
   if (!navigator.onLine) {
-    return localEntries;
+    // Sort entries by start time (newest first) even when offline
+    return localEntries.sort(
+      (a, b) =>
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
   }
 
   const response = yield* Effect.tryPromise({
