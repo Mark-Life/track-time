@@ -102,8 +102,14 @@ export const handleLogin = (req: Request) => {
   console.log("[handleLogin] Login request received");
   console.log("[handleLogin] URL:", req.url);
   console.log("[handleLogin] Method:", req.method);
-  console.log("[handleLogin] Headers:", Object.fromEntries(req.headers.entries()));
-  
+
+  // Log headers
+  const headersObj: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    headersObj[key] = value;
+  });
+  console.log("[handleLogin] Headers:", headersObj);
+
   return Effect.runPromise(
     Effect.gen(function* () {
       console.log("[handleLogin] Parsing auth body");
@@ -125,7 +131,7 @@ export const handleLogin = (req: Request) => {
       );
 
       console.log("[handleLogin] Authentication successful, user ID:", user.id);
-      
+
       // Record success and reset rate limit
       yield* recordSuccess(req, email, "login");
 
@@ -149,14 +155,20 @@ export const handleLogin = (req: Request) => {
       const responseWithAuth = setAuthCookie(response, token, req);
 
       // Generate and set CSRF token
+      console.log("[handleLogin] Setting CSRF token");
       const csrfToken = yield* createCsrfToken(user.id);
-      return setCsrfCookie(responseWithAuth, csrfToken, req);
+      const finalResponse = setCsrfCookie(responseWithAuth, csrfToken, req);
+      console.log("[handleLogin] Login successful, returning response");
+      return finalResponse;
     })
   ).catch((error) => {
+    console.error("[handleLogin] Error caught:", error);
     if (isAuthError(error)) {
+      console.error("[handleLogin] Auth error:", error.message);
       return createAuthErrorResponse(error.message);
     }
 
+    console.error("[handleLogin] Unexpected error:", error);
     return Response.json(
       {
         error:
@@ -165,6 +177,7 @@ export const handleLogin = (req: Request) => {
       { status: 500 }
     );
   });
+};
 
 export const handleLogout = (req: Request) =>
   Effect.runPromise(
