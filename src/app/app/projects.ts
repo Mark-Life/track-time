@@ -1,5 +1,6 @@
 import { Effect, Ref } from "effect";
 import { editIcon, trashIcon } from "~/assets/icons";
+import { showSkeleton } from "~/components/ui/skeleton.ts";
 import type { Project, WebSocketMessage } from "~/lib/types.ts";
 import { deleteProject, getProjects, updateProject } from "./api.ts";
 
@@ -79,6 +80,12 @@ const projectHTML = (project: Project, isEditing = false): string => {
     </div>
   `;
 };
+
+/**
+ * Shows loading skeleton for projects
+ */
+const showProjectsLoading = () =>
+  showSkeleton("projects-container", { variant: "project", count: 3 });
 
 const renderProjects = (projects: Project[]) =>
   Effect.sync(() => {
@@ -325,6 +332,7 @@ export const initializeProjectsPage = Effect.gen(function* () {
 
   // Load projects
   const loadProjects = Effect.gen(function* () {
+    yield* showProjectsLoading();
     const projects = yield* getProjects;
     yield* renderProjects(projects);
   });

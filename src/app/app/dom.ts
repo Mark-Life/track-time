@@ -12,6 +12,7 @@ import {
   setComboboxValue,
   updateComboboxOptions,
 } from "~/components/ui/combobox.ts";
+import { showSkeleton } from "~/components/ui/skeleton.ts";
 import type { Entry, Project } from "~/lib/types.ts";
 import { entriesList, playPauseBtn, timerDisplay } from "./dom-elements.ts";
 
@@ -272,6 +273,12 @@ const entryHTML = (
     </div>
   `;
 };
+
+/**
+ * Shows loading skeleton for entries
+ */
+export const showEntriesLoading = () =>
+  showSkeleton("entries-list", { variant: "entry", count: 3 });
 
 export const renderEntries = (
   entries: Entry[],

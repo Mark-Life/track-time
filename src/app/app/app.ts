@@ -27,6 +27,7 @@ import {
   renderEntries,
   renderEntryEditForm,
   renderEntryView,
+  showEntriesLoading,
   showFormError,
   showPlayButton,
 } from "./dom.ts";
@@ -208,6 +209,7 @@ const loadEntriesForTimerPage = Effect.gen(function* () {
   if (!appRefs) {
     return;
   }
+  yield* showEntriesLoading();
   const entries = yield* getEntries;
   const currentProjects = yield* Ref.get(appRefs.projectsRef);
   yield* renderEntries(entries, currentProjects);
@@ -373,6 +375,9 @@ const initializeApp = Effect.gen(function* () {
 
   // Load initial data
   const loadInitialData = Effect.gen(function* () {
+    // Show loading state for entries
+    yield* showEntriesLoading();
+
     // Load projects
     const projects = yield* loadProjects;
     yield* Ref.set(projectsRef, projects);
