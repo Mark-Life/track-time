@@ -98,20 +98,34 @@ export const handleRegister = (req: Request) =>
     );
   });
 
-export const handleLogin = (req: Request) =>
-  Effect.runPromise(
+export const handleLogin = (req: Request) => {
+  console.log("[handleLogin] Login request received");
+  console.log("[handleLogin] URL:", req.url);
+  console.log("[handleLogin] Method:", req.method);
+  console.log("[handleLogin] Headers:", Object.fromEntries(req.headers.entries()));
+  
+  return Effect.runPromise(
     Effect.gen(function* () {
+      console.log("[handleLogin] Parsing auth body");
       const { email, password } = yield* parseAuthBody(req);
+      console.log("[handleLogin] Email:", email);
 
       // Check rate limit before processing
+      console.log("[handleLogin] Checking rate limit");
       yield* rateLimitAuth(req, email, "login");
 
       // Attempt authentication, record failed attempt on error
+      console.log("[handleLogin] Attempting authentication");
       const user: User = yield* Effect.tapError(
         authenticateUser(email, password),
-        () => recordFailedAttempt(req, email, "login")
+        (error) => {
+          console.error("[handleLogin] Authentication failed:", error);
+          return recordFailedAttempt(req, email, "login");
+        }
       );
 
+      console.log("[handleLogin] Authentication successful, user ID:", user.id);
+      
       // Record success and reset rate limit
       yield* recordSuccess(req, email, "login");
 

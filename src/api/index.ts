@@ -116,11 +116,14 @@ const handleProjectsRoutes = (
 };
 
 const handleAuthRoutes = (url: URL, req: Request): Promise<Response> | null => {
+  console.log("[handleAuthRoutes] Route:", url.pathname, "Method:", req.method);
+  
   if (url.pathname === "/api/auth/register" && req.method === "POST") {
     return handleRegister(req);
   }
 
   if (url.pathname === "/api/auth/login" && req.method === "POST") {
+    console.log("[handleAuthRoutes] Calling handleLogin");
     return handleLogin(req);
   }
 
@@ -170,9 +173,11 @@ export const handleApiRequest = (
   server: Server
 ): Promise<Response> | null => {
   const url = new URL(req.url);
+  console.log("[handleApiRequest] API request:", url.pathname, req.method);
 
   const authPromise = handleAuthRoutes(url, req);
   if (authPromise) {
+    console.log("[handleApiRequest] Handling auth route");
     return safePromise(authPromise);
   }
 

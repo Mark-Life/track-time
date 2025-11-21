@@ -64,16 +64,22 @@ const handleAuth = () =>
 
 authForm.addEventListener("submit", (e) => {
   e.preventDefault();
+  console.log("[Login Form] Form submitted");
   Effect.runPromise(
     Effect.catchAll(handleAuth(), (error) =>
       Effect.sync(() => {
+        console.error("[Login Form] Error:", error);
         const message =
           error instanceof Error ? error.message : "Authentication failed";
         showError(message);
         setLoading(false);
       })
     )
-  );
+  ).catch((error) => {
+    console.error("[Login Form] Unhandled error:", error);
+    showError("An unexpected error occurred");
+    setLoading(false);
+  });
 });
 
 toggleRegister.addEventListener("click", () => {

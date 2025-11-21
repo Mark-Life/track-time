@@ -66,6 +66,8 @@ const checkTokenExpiration = (
 const handleRequest = async (req: Request, srv: Server): Promise<Response> => {
   const url = new URL(req.url);
   const pathname = url.pathname;
+  
+  console.log("[handleRequest] Incoming request:", pathname, req.method);
 
   // HMR WebSocket upgrade (development only, no auth required)
   if (pathname === "/hmr") {
@@ -80,6 +82,7 @@ const handleRequest = async (req: Request, srv: Server): Promise<Response> => {
   // Run authentication middleware for protected routes and assets
   const middlewareResult = await runAuthMiddleware(req);
   if (middlewareResult !== null) {
+    console.log("[handleRequest] Middleware blocked request:", pathname);
     return middlewareResult;
   }
 
@@ -90,6 +93,7 @@ const handleRequest = async (req: Request, srv: Server): Promise<Response> => {
   }
 
   // API routes (need server instance for WebSocket publishing)
+  console.log("[handleRequest] Routing to API handler:", pathname);
   const apiResponse = await handleApiRoutes(pathname, req, srv);
   if (apiResponse !== null) {
     return apiResponse;

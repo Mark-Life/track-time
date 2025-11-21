@@ -58,11 +58,14 @@ export const handleApiRoutes = async (
     return null;
   }
 
+  console.log("[handleApiRoutes] API route:", pathname, req.method);
   const apiResponse = await handleApiRequest(req, srv);
   if (apiResponse) {
+    console.log("[handleApiRoutes] API response status:", apiResponse.status);
     return apiResponse;
   }
 
+  console.log("[handleApiRoutes] No handler found for:", pathname);
   return Response.json({ error: "Not Found" }, { status: 404 });
 };
 
