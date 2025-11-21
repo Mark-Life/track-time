@@ -53,7 +53,6 @@ const handleAuth = () =>
         yield* login(email, password);
       }
 
-      console.log("[Login Form] Login successful, redirecting to /app");
       // Small delay to ensure cookies are set before redirect
       yield* Effect.sleep("100 millis");
       window.location.href = "/app";
@@ -67,19 +66,16 @@ const handleAuth = () =>
 
 authForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  console.log("[Login Form] Form submitted");
   Effect.runPromise(
     Effect.catchAll(handleAuth(), (error) =>
       Effect.sync(() => {
-        console.error("[Login Form] Error:", error);
         const message =
           error instanceof Error ? error.message : "Authentication failed";
         showError(message);
         setLoading(false);
       })
     )
-  ).catch((error) => {
-    console.error("[Login Form] Unhandled error:", error);
+  ).catch(() => {
     showError("An unexpected error occurred");
     setLoading(false);
   });

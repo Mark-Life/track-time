@@ -6,57 +6,32 @@ export const login = (
   password: string
 ): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
-    console.log("[Login] Attempting login for:", email);
-
     const response: Response = yield* Effect.tryPromise({
-      try: () => {
-        console.log("[Login] Sending request to /api/auth/login");
-        return fetch("/api/auth/login", {
+      try: () =>
+        fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
           credentials: "include",
-        });
-      },
-      catch: (error) => {
-        console.error("[Login] Fetch error:", error);
-        return new Error(`Failed to login: ${error}`);
-      },
+        }),
+      catch: (error) => new Error(`Failed to login: ${error}`),
     });
-
-    console.log(
-      "[Login] Response status:",
-      response.status,
-      response.statusText
-    );
 
     if (!response.ok) {
       const errorData = yield* Effect.tryPromise({
         try: () => response.json() as Promise<{ error: string }>,
         catch: () => new Error("Login failed"),
       });
-      console.error("[Login] Error response:", errorData);
       const errorMessage =
         errorData instanceof Error ? errorData.message : errorData.error;
       yield* Effect.fail(new Error(errorMessage));
     }
 
-    const data: { user: User } = yield* Effect.tryPromise({
+    // Parse response to ensure it's valid JSON
+    yield* Effect.tryPromise({
       try: () => response.json() as Promise<{ user: User }>,
-      catch: (error) => {
-        console.error("[Login] Parse error:", error);
-        return new Error(`Failed to parse response: ${error}`);
-      },
+      catch: (error) => new Error(`Failed to parse response: ${error}`),
     });
-
-    console.log(`[Login] ✅ Logged in as ${data.user.email}`);
-    // Log response headers
-    const headersObj: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      headersObj[key] = value;
-    });
-    console.log("[Login] Response headers:", headersObj);
-    yield* Effect.log(`✅ Logged in as ${data.user.email}`);
   });
 
 export const register = (
