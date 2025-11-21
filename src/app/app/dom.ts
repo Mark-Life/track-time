@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import {
   chevronIcon,
   editIcon,
+  loaderIcon,
   pauseIcon,
   playIcon,
   trashIcon,
@@ -35,6 +36,19 @@ export const showPauseButton = () =>
     playPauseBtn.setAttribute("aria-label", "Pause timer");
     playPauseBtn.className =
       "bg-destructive text-destructive-foreground p-4 rounded-full hover:bg-destructive/80 transition cursor-pointer flex items-center justify-center";
+    playPauseBtn.disabled = false;
+  });
+
+/**
+ * Shows loading state on the timer button
+ */
+export const showTimerButtonLoading = () =>
+  Effect.sync(() => {
+    playPauseBtn.innerHTML = loaderIcon(24);
+    playPauseBtn.setAttribute("aria-label", "Loading...");
+    playPauseBtn.disabled = true;
+    playPauseBtn.className =
+      "bg-muted text-muted-foreground p-4 rounded-full transition cursor-not-allowed flex items-center justify-center opacity-60";
   });
 
 const isoToDatetimeLocal = (isoString: string): string => {
@@ -391,4 +405,60 @@ export const showFormError = (form: HTMLFormElement, message: string) =>
     setTimeout(() => {
       errorElement.remove();
     }, 5000);
+  });
+
+/**
+ * Shows loading state on a delete button for an entry
+ */
+export const showEntryDeleteLoading = (entryId: string) =>
+  Effect.sync(() => {
+    const entryElement = entriesList.querySelector(
+      `[data-entry-id="${entryId}"]`
+    ) as HTMLElement;
+    if (!entryElement) {
+      return;
+    }
+
+    const deleteBtn = entryElement.querySelector(
+      ".delete-entry-btn"
+    ) as HTMLButtonElement;
+    if (deleteBtn) {
+      deleteBtn.disabled = true;
+      deleteBtn.innerHTML = loaderIcon(16);
+      deleteBtn.className =
+        "delete-entry-btn text-white bg-muted p-2 rounded-full cursor-not-allowed flex items-center justify-center opacity-60";
+      deleteBtn.setAttribute("aria-label", "Deleting...");
+    }
+
+    // Add loading overlay to the entire entry
+    entryElement.style.opacity = "0.6";
+    entryElement.style.pointerEvents = "none";
+  });
+
+/**
+ * Removes loading state from an entry
+ */
+export const removeEntryDeleteLoading = (entryId: string) =>
+  Effect.sync(() => {
+    const entryElement = entriesList.querySelector(
+      `[data-entry-id="${entryId}"]`
+    ) as HTMLElement;
+    if (!entryElement) {
+      return;
+    }
+
+    const deleteBtn = entryElement.querySelector(
+      ".delete-entry-btn"
+    ) as HTMLButtonElement;
+    if (deleteBtn) {
+      deleteBtn.disabled = false;
+      deleteBtn.innerHTML = trashIcon(16);
+      deleteBtn.className =
+        "delete-entry-btn text-white bg-destructive p-2 rounded-full hover:bg-destructive/80 cursor-pointer flex items-center justify-center";
+      deleteBtn.setAttribute("aria-label", "Delete entry");
+    }
+
+    // Remove loading overlay
+    entryElement.style.opacity = "";
+    entryElement.style.pointerEvents = "";
   });

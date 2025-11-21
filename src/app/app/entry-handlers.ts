@@ -2,12 +2,13 @@ import { Effect, Ref } from "effect";
 import type { Project } from "~/lib/types.ts";
 import { deleteEntry, getEntries, updateEntry } from "./api.ts";
 import {
+  removeEntryDeleteLoading,
   renderEntries,
   renderEntryEditForm,
   renderEntryView,
+  showEntryDeleteLoading,
   showFormError,
 } from "./dom.ts";
-import type { AppRefs } from "./app-state.ts";
 
 /**
  * Validates entry form data
@@ -27,9 +28,7 @@ export const validateEntryForm = (
   const endedAtInput = formData.get("endedAt") as string;
   const projectIdInput = formData.get("projectId") as string;
   const projectId =
-    projectIdInput && projectIdInput.trim() !== ""
-      ? projectIdInput
-      : undefined;
+    projectIdInput && projectIdInput.trim() !== "" ? projectIdInput : undefined;
 
   if (!startedAtInput) {
     return { valid: false, error: "Start time is required" };
@@ -84,7 +83,7 @@ export const setupEntryClickHandlers = (
           Effect.gen(function* () {
             const entries = yield* getEntries;
             const entry = entries.find((e) => e.id === entryId);
-            const projects = yield* Ref.get(projectsRef);
+            const projects: Project[] = yield* Ref.get(projectsRef);
             if (entry) {
               yield* renderEntryEditForm(entry, projects);
             }
@@ -108,7 +107,7 @@ export const setupEntryClickHandlers = (
           Effect.gen(function* () {
             const entries = yield* getEntries;
             const entry = entries.find((e) => e.id === entryId);
-            const currentProjects = yield* Ref.get(projectsRef);
+            const currentProjects: Project[] = yield* Ref.get(projectsRef);
             if (entry) {
               yield* renderEntryView(entry, currentProjects);
             }
@@ -130,12 +129,20 @@ export const setupEntryClickHandlers = (
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
+            // Show loading state immediately
+            yield* showEntryDeleteLoading(entryId);
+
             yield* deleteEntry(entryId);
             const entries = yield* getEntries;
-            const currentProjects = yield* Ref.get(projectsRef);
+            const currentProjects: Project[] = yield* Ref.get(projectsRef);
             yield* renderEntries(entries, currentProjects);
           }),
-          (error) => Effect.logError(`Failed to delete entry: ${error}`)
+          (error) =>
+            Effect.gen(function* () {
+              yield* Effect.logError(`Failed to delete entry: ${error}`);
+              // Remove loading state on error
+              yield* removeEntryDeleteLoading(entryId);
+            })
         )
       );
       return;
@@ -177,7 +184,7 @@ export const setupEntryFormHandler = (
             validation.endedAt,
             validation.projectId
           );
-          const currentProjects = yield* Ref.get(projectsRef);
+          const currentProjects: Project[] = yield* Ref.get(projectsRef);
           yield* renderEntryView(updatedEntry, currentProjects);
         }),
         (error) =>
@@ -187,11 +194,10 @@ export const setupEntryFormHandler = (
               error instanceof Error ? error.message : "Failed to update entry";
             yield* showFormError(form, errorMessage);
             const entries = yield* getEntries;
-            const currentProjects = yield* Ref.get(projectsRef);
+            const currentProjects: Project[] = yield* Ref.get(projectsRef);
             yield* renderEntries(entries, currentProjects);
           })
       )
     );
   });
 };
-

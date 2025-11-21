@@ -1,9 +1,13 @@
 import { Effect, Ref } from "effect";
-import type { Timer } from "~/lib/types.ts";
 import { getEntries, startTimer, stopTimer } from "./api.ts";
-import { renderEntries } from "./dom.ts";
-import { startTimerUI, stopTimerUI } from "./timer-ui.ts";
 import type { AppRefs } from "./app-state.ts";
+import {
+  renderEntries,
+  showPauseButton,
+  showPlayButton,
+  showTimerButtonLoading,
+} from "./dom.ts";
+import { startTimerUI, stopTimerUI } from "./timer-ui.ts";
 
 /**
  * Sets up play/pause button handler
@@ -16,6 +20,9 @@ export const setupTimerButtonHandler = (
     Effect.runPromise(
       Effect.catchAll(
         Effect.gen(function* () {
+          // Show loading state immediately
+          yield* showTimerButtonLoading();
+
           const timer = yield* Ref.get(refs.timerRef);
           if (timer) {
             // Timer is running, stop it
@@ -28,18 +35,30 @@ export const setupTimerButtonHandler = (
               const projects = yield* Ref.get(refs.projectsRef);
               yield* renderEntries(entries, projects);
             }
+            // Restore play button after operation completes
+            yield* showPlayButton();
           } else {
             // Timer is stopped, start it
             const selectedProjectId = yield* Ref.get(refs.selectedProjectIdRef);
             const newTimer = yield* startTimer(undefined, selectedProjectId);
             yield* Ref.set(refs.timerRef, newTimer);
             yield* startTimerUI(refs.timerRef, refs.intervalRef);
+            // Restore pause button after operation completes
+            yield* showPauseButton();
           }
         }),
-        (error) => Effect.logError(`Failed to toggle timer: ${error}`)
-        // Could show user-friendly error message here
+        (error) =>
+          Effect.gen(function* () {
+            yield* Effect.logError(`Failed to toggle timer: ${error}`);
+            // Restore button state on error
+            const timer = yield* Ref.get(refs.timerRef);
+            if (timer) {
+              yield* showPauseButton();
+            } else {
+              yield* showPlayButton();
+            }
+          })
       )
     );
   });
 };
-
