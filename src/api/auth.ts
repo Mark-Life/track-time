@@ -78,11 +78,11 @@ export const handleRegister = (req: Request) =>
       });
 
       // Set auth cookie
-      const responseWithAuth = setAuthCookie(response, token);
+      const responseWithAuth = setAuthCookie(response, token, req);
 
       // Generate and set CSRF token
       const csrfToken = yield* createCsrfToken(user.id);
-      return setCsrfCookie(responseWithAuth, csrfToken);
+      return setCsrfCookie(responseWithAuth, csrfToken, req);
     })
   ).catch((error) => {
     if (isAuthError(error)) {
@@ -132,11 +132,11 @@ export const handleLogin = (req: Request) =>
       });
 
       // Set auth cookie
-      const responseWithAuth = setAuthCookie(response, token);
+      const responseWithAuth = setAuthCookie(response, token, req);
 
       // Generate and set CSRF token
       const csrfToken = yield* createCsrfToken(user.id);
-      return setCsrfCookie(responseWithAuth, csrfToken);
+      return setCsrfCookie(responseWithAuth, csrfToken, req);
     })
   ).catch((error) => {
     if (isAuthError(error)) {
@@ -152,11 +152,11 @@ export const handleLogin = (req: Request) =>
     );
   });
 
-export const handleLogout = () =>
+export const handleLogout = (req: Request) =>
   Effect.runPromise(
     Effect.sync(() => {
       const response = createAuthSuccessResponse({ success: true });
-      return clearAuthCookie(response);
+      return clearAuthCookie(response, req);
     })
   ).catch((error) =>
     Response.json(
@@ -191,7 +191,7 @@ export const handleMe = async (req: Request): Promise<Response> => {
 
           // Generate and set CSRF token
           const csrfToken = yield* createCsrfToken(userId);
-          return setCsrfCookie(response, csrfToken);
+          return setCsrfCookie(response, csrfToken, _req);
         })
       )(req)
     ).catch((error) => {
@@ -260,11 +260,11 @@ export const handleRefreshToken = async (req: Request): Promise<Response> => {
           });
 
           // Set auth cookie
-          const responseWithAuth = setAuthCookie(response, token);
+          const responseWithAuth = setAuthCookie(response, token, _req);
 
           // Generate and set CSRF token
           const csrfToken = yield* createCsrfToken(userId);
-          return setCsrfCookie(responseWithAuth, csrfToken);
+          return setCsrfCookie(responseWithAuth, csrfToken, _req);
         })
       )(req)
     ).catch((error) => {
@@ -305,7 +305,7 @@ export const handleCsrfToken = async (req: Request): Promise<Response> => {
         Effect.gen(function* () {
           const csrfToken = yield* createCsrfToken(userId);
           const response = createAuthSuccessResponse({ csrfToken });
-          return setCsrfCookie(response, csrfToken);
+          return setCsrfCookie(response, csrfToken, _req);
         })
       )(req)
     ).catch((error) => {

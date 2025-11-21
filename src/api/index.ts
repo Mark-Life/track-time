@@ -125,7 +125,7 @@ const handleAuthRoutes = (url: URL, req: Request): Promise<Response> | null => {
   }
 
   if (url.pathname === "/api/auth/logout" && req.method === "POST") {
-    return handleLogout();
+    return handleLogout(req);
   }
 
   if (url.pathname === "/api/auth/me" && req.method === "GET") {

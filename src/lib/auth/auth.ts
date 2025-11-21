@@ -224,27 +224,45 @@ export const createAuthSuccessResponse = (data: unknown): Response =>
   Response.json(data);
 
 /**
+ * Checks if the request is over HTTPS (including proxy headers).
+ */
+const isHttps = (req?: Request): boolean => {
+  // Check X-Forwarded-Proto header (common in proxy setups like Vercel)
+  if (req) {
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    if (forwardedProto === "https") {
+      return true;
+    }
+  }
+
+  // Fallback to NODE_ENV check
+  return process.env.NODE_ENV === "production";
+};
+
+/**
  * Sets authentication cookie with secure flags.
- * In production, adds Secure flag to ensure cookie is only sent over HTTPS.
+ * Adds Secure flag when using HTTPS (detected via headers or NODE_ENV).
+ * Uses SameSite=Lax for better compatibility while maintaining security.
  */
 export const setAuthCookie = (
   response: Response,
   token: string,
+  req?: Request,
   maxAge: number = 7 * 24 * 60 * 60
 ): Response => {
-  const isProduction = process.env.NODE_ENV === "production";
+  const useSecure = isHttps(req);
 
   // Build cookie string with proper formatting
   const cookieParts = [
     `token=${token}`,
     "HttpOnly",
-    "SameSite=Strict",
+    "SameSite=Lax", // Changed from Strict to Lax for better compatibility
     `Max-Age=${maxAge}`,
     "Path=/",
   ];
 
-  // Add Secure flag only in production (requires HTTPS)
-  if (isProduction) {
+  // Add Secure flag only when using HTTPS
+  if (useSecure) {
     cookieParts.push("Secure");
   }
 
@@ -255,21 +273,21 @@ export const setAuthCookie = (
 
 /**
  * Clears authentication cookie by setting Max-Age=0.
- * Note: Secure flag is omitted to allow clearing over HTTP in development.
+ * Uses same security settings as setAuthCookie for consistency.
  */
-export const clearAuthCookie = (response: Response): Response => {
-  const isProduction = process.env.NODE_ENV === "production";
+export const clearAuthCookie = (response: Response, req?: Request): Response => {
+  const useSecure = isHttps(req);
 
   const cookieParts = [
     "token=",
     "HttpOnly",
-    "SameSite=Strict",
+    "SameSite=Lax", // Changed from Strict to Lax for better compatibility
     "Max-Age=0",
     "Path=/",
   ];
 
-  // Add Secure flag only in production
-  if (isProduction) {
+  // Add Secure flag only when using HTTPS
+  if (useSecure) {
     cookieParts.push("Secure");
   }
 

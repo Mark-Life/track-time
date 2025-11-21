@@ -102,20 +102,41 @@ export const extractCsrfToken = (
   });
 
 /**
- * Sets CSRF token cookie in response.
+ * Checks if the request is over HTTPS (including proxy headers).
  */
-export const setCsrfCookie = (response: Response, token: string): Response => {
-  const isProduction = process.env.NODE_ENV === "production";
+const isHttps = (req?: Request): boolean => {
+  // Check X-Forwarded-Proto header (common in proxy setups like Vercel)
+  if (req) {
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    if (forwardedProto === "https") {
+      return true;
+    }
+  }
+
+  // Fallback to NODE_ENV check
+  return process.env.NODE_ENV === "production";
+};
+
+/**
+ * Sets CSRF token cookie in response.
+ * Uses SameSite=Lax for better compatibility while maintaining security.
+ */
+export const setCsrfCookie = (
+  response: Response,
+  token: string,
+  req?: Request
+): Response => {
+  const useSecure = isHttps(req);
 
   const cookieParts = [
     `csrf-token=${token}`,
-    "SameSite=Strict",
+    "SameSite=Lax", // Changed from Strict to Lax for better compatibility
     `Max-Age=${CSRF_TOKEN_TTL}`,
     "Path=/",
   ];
 
-  // Add Secure flag only in production
-  if (isProduction) {
+  // Add Secure flag only when using HTTPS
+  if (useSecure) {
     cookieParts.push("Secure");
   }
 
