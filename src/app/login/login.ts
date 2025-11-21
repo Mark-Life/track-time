@@ -53,6 +53,9 @@ const handleAuth = () =>
         yield* login(email, password);
       }
 
+      console.log("[Login Form] Login successful, redirecting to /app");
+      // Small delay to ensure cookies are set before redirect
+      yield* Effect.sleep("100 millis");
       window.location.href = "/app";
     } catch (error) {
       const message =

@@ -50,6 +50,12 @@ export const login = (
     });
 
     console.log(`[Login] ✅ Logged in as ${data.user.email}`);
+    // Log response headers
+    const headersObj: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      headersObj[key] = value;
+    });
+    console.log("[Login] Response headers:", headersObj);
     yield* Effect.log(`✅ Logged in as ${data.user.email}`);
   });
 

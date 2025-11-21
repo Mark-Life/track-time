@@ -84,9 +84,11 @@ export const requireAuth: Middleware = (req) =>
       return null;
     }
 
+    console.log("[requireAuth] Checking auth for:", pathname);
     const token = yield* extractToken(req);
 
     if (!token) {
+      console.log("[requireAuth] No token found, blocking request");
       // For API routes, return 401; for app routes, redirect
       if (isApiRoute(pathname)) {
         return Response.json({ error: "Unauthorized" }, { status: 401 });

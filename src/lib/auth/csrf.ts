@@ -140,7 +140,9 @@ export const setCsrfCookie = (
     cookieParts.push("Secure");
   }
 
-  response.headers.set("Set-Cookie", cookieParts.join("; "));
+  // Append the CSRF cookie header (HTTP allows multiple Set-Cookie headers)
+  const cookieValue = cookieParts.join("; ");
+  response.headers.append("Set-Cookie", cookieValue);
   return response;
 };
 
