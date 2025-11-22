@@ -6,8 +6,8 @@ import {
   updateComboboxOptions,
 } from "~/components/ui/combobox.ts";
 import type { Project, Timer } from "~/lib/types.ts";
-import { getProjects, updateTimer } from "./api.ts";
-import type { AppRefs } from "./app-state.ts";
+import { getProjects, updateTimer } from "../api.ts";
+import type { AppRefs } from "../core/app-state.ts";
 
 /**
  * Populates project combobox with projects

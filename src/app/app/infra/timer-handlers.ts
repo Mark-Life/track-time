@@ -1,14 +1,14 @@
 import { Effect, Ref } from "effect";
 import type { Entry, Project, Timer } from "~/lib/types.ts";
-import { getEntries, startTimer, stopTimer } from "./api.ts";
-import type { AppRefs } from "./app-state.ts";
+import { getEntries, startTimer, stopTimer } from "../api.ts";
+import type { AppRefs } from "../core/app-state.ts";
 import {
   renderEntries,
   showPauseButton,
   showPlayButton,
   showTimerButtonLoading,
-} from "./dom.ts";
-import { startTimerUI, stopTimerUI } from "./timer-ui.ts";
+} from "../ui/dom.ts";
+import { startTimerUI, stopTimerUI } from "../ui/timer-ui.ts";
 
 /**
  * Ensures the newly created entry is included in entries list when offline

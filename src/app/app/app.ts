@@ -12,8 +12,22 @@ import {
   createAppRefs,
   setupCleanupListeners,
   setWebSocketInstance,
-} from "./app-state.ts";
-import { renderEntries, showEntriesLoading, showPlayButton } from "./dom.ts";
+} from "./core/app-state.ts";
+import { initializeRouting, normalizeRoute } from "./core/routing.ts";
+import {
+  initializeProjectCombobox,
+  populateProjectCombobox,
+  setupProjectCreationHandlers,
+} from "./features/project-management.ts";
+import { loadUserEmail, setupLogout } from "./features/user-management.ts";
+import {
+  setupEntryClickHandlers,
+  setupEntryFormHandler,
+} from "./infra/entry-handlers.ts";
+import { setupOnlineStatusListeners } from "./infra/online-status.ts";
+import { setupTimerButtonHandler } from "./infra/timer-handlers.ts";
+import { createWebSocket } from "./infra/websocket-handlers.ts";
+import { renderEntries, showEntriesLoading, showPlayButton } from "./ui/dom.ts";
 import {
   addProjectBtn,
   entriesList,
@@ -21,22 +35,8 @@ import {
   projectInputContainer,
   projectNameInput,
   projectSubmitBtn,
-} from "./dom-elements.ts";
-import {
-  setupEntryClickHandlers,
-  setupEntryFormHandler,
-} from "./entry-handlers.ts";
-import { setupOnlineStatusListeners } from "./online-status.ts";
-import {
-  initializeProjectCombobox,
-  populateProjectCombobox,
-  setupProjectCreationHandlers,
-} from "./project-management.ts";
-import { initializeRouting, normalizeRoute } from "./routing.ts";
-import { setupTimerButtonHandler } from "./timer-handlers.ts";
-import { startTimerUI } from "./timer-ui.ts";
-import { loadUserEmail, setupLogout } from "./user-management.ts";
-import { createWebSocket } from "./websocket-handlers.ts";
+} from "./ui/dom-elements.ts";
+import { startTimerUI } from "./ui/timer-ui.ts";
 
 // Accept HMR updates
 if (import.meta.hot) {

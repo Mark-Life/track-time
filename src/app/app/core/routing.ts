@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { initializeProjectsPage } from "./projects.ts";
+import { initializeProjectsPage } from "../features/projects.ts";
 
 const timerPage = document.getElementById("timer-page") as HTMLDivElement;
 const projectsPage = document.getElementById("projects-page") as HTMLDivElement;
