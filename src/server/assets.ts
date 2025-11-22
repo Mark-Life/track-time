@@ -123,6 +123,9 @@ const handleTildePath = async (pathname: string): Promise<Response | null> => {
     if (path.endsWith(".svg")) {
       return "image/svg+xml";
     }
+    if (path.endsWith(".png")) {
+      return "image/png";
+    }
     if (path.endsWith(".json")) {
       return "application/json";
     }
@@ -246,6 +249,19 @@ const handleRootStaticFiles = async (
       return new Response(file, {
         headers: {
           "Content-Type": "image/svg+xml",
+        },
+      });
+    }
+  }
+
+  // Handle apple-touch-icon.png (iOS home screen icon)
+  if (pathname === "/apple-touch-icon.png") {
+    const iconPath = join(SRC_DIR, "assets", "apple-touch-icon.png");
+    const file = Bun.file(iconPath);
+    if (await file.exists()) {
+      return new Response(file, {
+        headers: {
+          "Content-Type": "image/png",
         },
       });
     }

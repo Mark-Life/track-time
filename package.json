@@ -7,6 +7,7 @@
     "@biomejs/biome": "latest",
     "@effect/language-service": "^0.55.2",
     "@types/bun": "latest",
+    "sharp": "^0.34.5",
     "tailwindcss": "latest",
     "ultracite": "latest"
   },

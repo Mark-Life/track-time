@@ -23,13 +23,23 @@ console.log("\n🚀 Starting build process...\n");
 
 const start = performance.now();
 
-// Create a temporary manifest.json at root for Bun's HTML bundler to resolve during build
-// This file will be served by the server at runtime from src/assets/manifest.json
+// Create temporary files at root for Bun's HTML bundler to resolve during build
+// These files will be served by the server at runtime from src/assets/
+
+// Temporary manifest.json
 const manifestPath = join("src", "assets", "manifest.json");
 const tempManifestPath = join(".", "manifest.json");
 if (existsSync(manifestPath)) {
   await cp(manifestPath, tempManifestPath);
   console.log("📋 Created temporary manifest.json for build...");
+}
+
+// Temporary apple-touch-icon.png
+const appleIconPath = join("src", "assets", "apple-touch-icon.png");
+const tempAppleIconPath = join(".", "apple-touch-icon.png");
+if (existsSync(appleIconPath)) {
+  await cp(appleIconPath, tempAppleIconPath);
+  console.log("📋 Created temporary apple-touch-icon.png for build...");
 }
 
 // Build the server entry point which includes HTML imports
@@ -94,10 +104,14 @@ if (existsSync(globalCssPath)) {
   console.log(`   ✓ Copied ${globalCssPath} → ${distGlobalCssPath}`);
 }
 
-// Clean up temporary manifest.json file created for build
+// Clean up temporary files created for build
 if (existsSync(tempManifestPath)) {
   await rm(tempManifestPath);
   console.log("   ✓ Cleaned up temporary manifest.json");
+}
+if (existsSync(tempAppleIconPath)) {
+  await rm(tempAppleIconPath);
+  console.log("   ✓ Cleaned up temporary apple-touch-icon.png");
 }
 
 const end = performance.now();
