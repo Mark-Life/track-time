@@ -56,7 +56,7 @@ export const createCombobox = <T = string>(
     searchInput.placeholder = "Search...";
     searchInput.autocomplete = "off";
     searchInput.className =
-      "w-full px-3 py-2 border-b border-border bg-transparent text-foreground outline-none text-sm";
+      "w-full px-3 py-2 border-b border-border bg-transparent text-foreground outline-none text-base";
     searchInput.setAttribute("aria-label", "Search options");
     searchInput.setAttribute("data-combobox-search", "true");
 
