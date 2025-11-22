@@ -35,17 +35,82 @@ const TTL_CONFIG: Record<string, number> = {
 };
 
 /**
+ * localStorage key prefix for cache persistence
+ */
+const STORAGE_PREFIX = "log-time-cache:";
+
+/**
  * Global cache storage using Effect Ref
  */
 let cacheRef: Ref.Ref<CacheMap> | null = null;
 
 /**
- * Initializes the cache storage
+ * Restores cache from localStorage
+ */
+const restoreCacheFromStorage = (): CacheMap => {
+  const restored = new Map<string, CacheEntry<unknown>>();
+
+  try {
+    for (const key of Object.values(CacheKeys)) {
+      const storageKey = `${STORAGE_PREFIX}${key}`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        try {
+          const entry = JSON.parse(stored) as CacheEntry<unknown>;
+          // Validate TTL before restoring
+          const ttl = TTL_CONFIG[key] ?? 0;
+          const age = Date.now() - entry.timestamp;
+          if (age <= ttl) {
+            restored.set(key, entry);
+          } else {
+            // Remove expired entry from storage
+            localStorage.removeItem(storageKey);
+          }
+        } catch {
+          // Invalid JSON, remove it
+          localStorage.removeItem(storageKey);
+        }
+      }
+    }
+  } catch {
+    // localStorage not available or error, return empty map
+  }
+
+  return restored;
+};
+
+/**
+ * Persists cache entry to localStorage
+ */
+const persistCacheEntry = <T>(key: string, entry: CacheEntry<T>): void => {
+  try {
+    const storageKey = `${STORAGE_PREFIX}${key}`;
+    localStorage.setItem(storageKey, JSON.stringify(entry));
+  } catch {
+    // localStorage not available or quota exceeded, silently fail
+  }
+};
+
+/**
+ * Removes cache entry from localStorage
+ */
+const removeCacheEntryFromStorage = (key: string): void => {
+  try {
+    const storageKey = `${STORAGE_PREFIX}${key}`;
+    localStorage.removeItem(storageKey);
+  } catch {
+    // localStorage not available, silently fail
+  }
+};
+
+/**
+ * Initializes the cache storage and restores from localStorage
  */
 const getCacheRef = (): Effect.Effect<Ref.Ref<CacheMap>, never> =>
   Effect.gen(function* () {
     if (!cacheRef) {
-      cacheRef = yield* Ref.make<CacheMap>(new Map());
+      const restored = restoreCacheFromStorage();
+      cacheRef = yield* Ref.make<CacheMap>(restored);
     }
     return cacheRef;
   });
@@ -72,6 +137,8 @@ export const getCached = <T>(key: string): Effect.Effect<T | null, never> =>
       const newCache: CacheMap = new Map(cache);
       newCache.delete(key);
       yield* Ref.set(ref, newCache);
+      // Remove from localStorage
+      removeCacheEntryFromStorage(key);
       return null;
     }
 
@@ -90,12 +157,15 @@ export const setCached = <T>(
     const ref = yield* getCacheRef();
     const cache: CacheMap = yield* Ref.get(ref);
     const newCache: CacheMap = new Map(cache);
-    newCache.set(key, {
+    const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
       etag,
-    });
+    };
+    newCache.set(key, entry);
     yield* Ref.set(ref, newCache);
+    // Persist to localStorage
+    persistCacheEntry(key, entry);
   });
 
 /**
@@ -111,6 +181,8 @@ export const invalidateCache = (
     const keys = Array.isArray(key) ? key : [key];
     for (const k of keys) {
       newCache.delete(k);
+      // Remove from localStorage
+      removeCacheEntryFromStorage(k);
     }
     yield* Ref.set(ref, newCache);
   });
@@ -122,6 +194,14 @@ export const clearCache = (): Effect.Effect<void, never> =>
   Effect.gen(function* () {
     const ref = yield* getCacheRef();
     yield* Ref.set(ref, new Map());
+    // Clear all cache entries from localStorage
+    try {
+      for (const key of Object.values(CacheKeys)) {
+        removeCacheEntryFromStorage(key);
+      }
+    } catch {
+      // localStorage not available, silently fail
+    }
   });
 
 /**
@@ -154,19 +234,30 @@ export const getCachedWithRevalidate = <T>(
   fetchFn: () => Effect.Effect<T, Error>
 ): Effect.Effect<T, Error> =>
   Effect.gen(function* () {
-    const cached = yield* getCached<T>(key);
-    const isFresh = yield* isCachedFresh(key);
+    const ref = yield* getCacheRef();
+    const cache: CacheMap = yield* Ref.get(ref);
+    const entry = cache.get(key) as CacheEntry<T> | undefined;
 
-    // If we have fresh cached data, return it immediately
-    if (cached !== null && isFresh) {
-      return cached;
+    // If we have cached data (fresh or stale), return it immediately
+    // and fetch fresh data in background
+    if (entry) {
+      // Start background fetch (fire and forget)
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const freshData = yield* fetchFn();
+            yield* setCached(key, freshData);
+          }),
+          (error) => Effect.logError(`Background revalidation failed: ${error}`)
+        )
+      );
+
+      // Return cached data immediately (even if stale)
+      return entry.data;
     }
 
-    // Fetch fresh data
+    // No cache, fetch fresh data
     const freshData = yield* fetchFn();
     yield* setCached(key, freshData);
-
-    // If we had stale cached data, return fresh data
-    // Otherwise return fresh data (cache miss)
     return freshData;
   });

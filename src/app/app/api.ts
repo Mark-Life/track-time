@@ -3,6 +3,7 @@ import {
   CacheKeys,
   clearCache,
   getCached,
+  getCachedWithRevalidate,
   invalidateCache,
   setCached,
 } from "~/lib/cache.ts";
@@ -94,32 +95,28 @@ export const getTimer = Effect.gen(function* () {
     return localTimer;
   }
 
-  // Check cache first (short TTL for timer)
-  const cached = yield* getCached<Timer | null>(CacheKeys.timer);
-  if (cached !== null) {
-    return cached;
-  }
+  // Use stale-while-revalidate: return cached immediately, fetch fresh in background
+  return yield* getCachedWithRevalidate(CacheKeys.timer, () =>
+    Effect.gen(function* () {
+      const response = yield* Effect.tryPromise({
+        try: () => fetch("/api/timer", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch timer: ${error}`),
+      });
 
-  const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/timer", { credentials: "include" }),
-    catch: (error) => new Error(`Failed to fetch timer: ${error}`),
-  });
+      if (!response.ok) {
+        handleAuthError(response);
+        const localTimer = yield* getTimerFromLocal();
+        return localTimer;
+      }
 
-  if (!response.ok) {
-    handleAuthError(response);
-    const localTimer = yield* getTimerFromLocal();
-    return localTimer;
-  }
+      const timer = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Timer | null>,
+        catch: (error) => new Error(`Failed to parse timer JSON: ${error}`),
+      });
 
-  const timer = yield* Effect.tryPromise({
-    try: () => response.json() as Promise<Timer | null>,
-    catch: (error) => new Error(`Failed to parse timer JSON: ${error}`),
-  });
-
-  // Cache the result
-  yield* setCached(CacheKeys.timer, timer);
-
-  return timer;
+      return timer;
+    })
+  );
 });
 
 export const startTimer = (startedAt?: string, projectId?: string) =>
@@ -381,35 +378,27 @@ export const getEntries = Effect.gen(function* () {
     );
   }
 
-  // Check cache first
-  const cached = yield* getCached<Entry[]>(CacheKeys.entries);
-  if (cached !== null) {
-    // Merge local and cached server entries, removing duplicates by ID
-    const cachedIds = new Set(cached.map((e) => e.id));
-    const uniqueLocalEntries = localEntries.filter((e) => !cachedIds.has(e.id));
-    return [...cached, ...uniqueLocalEntries].sort(
-      (a, b) =>
-        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
-    );
-  }
+  // Use stale-while-revalidate: return cached immediately, fetch fresh in background
+  const serverEntries = yield* getCachedWithRevalidate(CacheKeys.entries, () =>
+    Effect.gen(function* () {
+      const response = yield* Effect.tryPromise({
+        try: () => fetch("/api/entries", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch entries: ${error}`),
+      });
 
-  const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/entries", { credentials: "include" }),
-    catch: (error) => new Error(`Failed to fetch entries: ${error}`),
-  });
+      if (!response.ok) {
+        handleAuthError(response);
+        return localEntries;
+      }
 
-  if (!response.ok) {
-    handleAuthError(response);
-    return localEntries;
-  }
+      const entries = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Entry[]>,
+        catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
+      });
 
-  const serverEntries = yield* Effect.tryPromise({
-    try: () => response.json() as Promise<Entry[]>,
-    catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
-  });
-
-  // Cache the server entries
-  yield* setCached(CacheKeys.entries, serverEntries);
+      return entries;
+    })
+  );
 
   // Merge local and server entries, removing duplicates by ID
   const serverIds = new Set(serverEntries.map((e) => e.id));
@@ -556,32 +545,27 @@ export const getProjects = Effect.gen(function* () {
     return [];
   }
 
-  // Check cache first
-  const cached = yield* getCached<Project[]>(CacheKeys.projects);
-  if (cached !== null) {
-    return cached;
-  }
+  // Use stale-while-revalidate: return cached immediately, fetch fresh in background
+  return yield* getCachedWithRevalidate(CacheKeys.projects, () =>
+    Effect.gen(function* () {
+      const response = yield* Effect.tryPromise({
+        try: () => fetch("/api/projects", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch projects: ${error}`),
+      });
 
-  // Fetch from API
-  const response = yield* Effect.tryPromise({
-    try: () => fetch("/api/projects", { credentials: "include" }),
-    catch: (error) => new Error(`Failed to fetch projects: ${error}`),
-  });
+      if (!response.ok) {
+        handleAuthError(response);
+        return [];
+      }
 
-  if (!response.ok) {
-    handleAuthError(response);
-    return [];
-  }
+      const projects = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Project[]>,
+        catch: (error) => new Error(`Failed to parse projects JSON: ${error}`),
+      });
 
-  const projects = yield* Effect.tryPromise({
-    try: () => response.json() as Promise<Project[]>,
-    catch: (error) => new Error(`Failed to parse projects JSON: ${error}`),
-  });
-
-  // Cache the result
-  yield* setCached(CacheKeys.projects, projects);
-
-  return projects;
+      return projects;
+    })
+  );
 });
 
 export const createProject = (name: string) =>

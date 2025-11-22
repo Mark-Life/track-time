@@ -1,9 +1,10 @@
 import "~/global.css";
 import { Effect, Ref } from "effect";
 import { initializeDrawer } from "~/components/ui/drawer.ts";
+import { CacheKeys, getCached } from "~/lib/cache.ts";
 import { getTimerFromLocal } from "~/lib/local-storage.ts";
-import type { Project } from "~/lib/types.ts";
-import { createProject, getEntries, getTimer } from "./api.ts";
+import type { Entry, Project, Timer } from "~/lib/types.ts";
+import { createProject, getEntries, getProjects, getTimer } from "./api.ts";
 import {
   type AppRefs,
   appInitialized,
@@ -28,7 +29,6 @@ import {
 import { setupOnlineStatusListeners } from "./online-status.ts";
 import {
   initializeProjectCombobox,
-  loadProjects,
   populateProjectCombobox,
   setupProjectCreationHandlers,
 } from "./project-management.ts";
@@ -42,6 +42,15 @@ import { createWebSocket } from "./websocket-handlers.ts";
 if (import.meta.hot) {
   import.meta.hot.accept();
 }
+
+/**
+ * Shows shell UI immediately (skeleton states already in HTML)
+ * This provides instant visual feedback before data loads
+ */
+const showShellUI = Effect.sync(() => {
+  // Skeleton is already in HTML, just ensure it's visible
+  // The shell is rendered immediately on page load
+});
 
 /**
  * Loads entries for timer page (can be called independently)
@@ -60,15 +69,34 @@ const loadEntriesForTimerPage = Effect.gen(function* () {
  * Main app initialization
  */
 const initializeApp = Effect.gen(function* () {
+  // Show shell UI immediately (skeleton already in HTML)
+  yield* showShellUI;
+
   // Initialize drawer
   yield* initializeDrawer();
 
-  // Load user email first
-  // TODO: move this to be suspended
-  yield* loadUserEmail;
-
-  // Setup logout button
+  // Setup logout button (non-blocking)
   setupLogout();
+
+  // Defer user email loading (non-critical, runs after initial render)
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(() => {
+      Effect.runPromise(
+        Effect.catchAll(loadUserEmail, (error) =>
+          Effect.logError(`Failed to load user email: ${error}`)
+        )
+      );
+    });
+  } else {
+    // Fallback for browsers without requestIdleCallback
+    setTimeout(() => {
+      Effect.runPromise(
+        Effect.catchAll(loadUserEmail, (error) =>
+          Effect.logError(`Failed to load user email: ${error}`)
+        )
+      );
+    }, 100);
+  }
 
   // Use existing refs if already initialized, otherwise create new ones
   let refs: AppRefs;
@@ -86,45 +114,125 @@ const initializeApp = Effect.gen(function* () {
   // Initialize project combobox
   yield* initializeProjectCombobox(refs.timerRef, refs.selectedProjectIdRef);
 
-  // Load initial data
-  const loadInitialData = Effect.gen(function* () {
-    // Show loading state for entries
-    yield* showEntriesLoading();
+  // Load cached data first for instant render
+  const loadCachedData = Effect.gen(function* () {
+    // Load cached projects
+    const cachedProjects = yield* getCached<Project[]>(CacheKeys.projects);
+    if (cachedProjects) {
+      yield* Ref.set(refs.projectsRef, cachedProjects);
+      yield* populateProjectCombobox(cachedProjects);
+    }
 
-    // Load projects
-    const projects = yield* loadProjects;
-    yield* Ref.set(refs.projectsRef, projects);
-
-    // Check localStorage first for offline timer
-    const localTimer = yield* getTimerFromLocal();
-    if (localTimer && !navigator.onLine) {
-      yield* Ref.set(refs.timerRef, localTimer);
-      yield* Ref.set(refs.selectedProjectIdRef, localTimer.projectId);
-      yield* populateProjectCombobox(projects, localTimer.projectId);
+    // Load cached timer
+    const cachedTimer = yield* getCached<Timer | null>(CacheKeys.timer);
+    if (cachedTimer) {
+      yield* Ref.set(refs.timerRef, cachedTimer);
+      yield* Ref.set(refs.selectedProjectIdRef, cachedTimer.projectId);
+      yield* populateProjectCombobox(
+        cachedProjects || [],
+        cachedTimer.projectId
+      );
       yield* startTimerUI(refs.timerRef, refs.intervalRef);
     } else {
-      const timer = yield* getTimer;
-      if (timer) {
-        yield* Ref.set(refs.timerRef, timer);
-        yield* Ref.set(refs.selectedProjectIdRef, timer.projectId);
-        yield* populateProjectCombobox(projects, timer.projectId);
+      // Check localStorage for offline timer
+      const localTimer = yield* getTimerFromLocal();
+      if (localTimer && !navigator.onLine) {
+        yield* Ref.set(refs.timerRef, localTimer);
+        yield* Ref.set(refs.selectedProjectIdRef, localTimer.projectId);
+        yield* populateProjectCombobox(
+          cachedProjects || [],
+          localTimer.projectId
+        );
         yield* startTimerUI(refs.timerRef, refs.intervalRef);
       } else {
-        // No timer active, show play button
         yield* showPlayButton();
       }
     }
 
-    const entries = yield* getEntries;
-    const currentProjects = yield* Ref.get(refs.projectsRef);
-    yield* renderEntries(entries, currentProjects);
+    // Load cached entries
+    const cachedEntries = yield* getCached<Entry[]>(CacheKeys.entries);
+    if (cachedEntries) {
+      yield* renderEntries(cachedEntries, cachedProjects || []);
+    } else {
+      // Show loading skeleton if no cached entries
+      yield* showEntriesLoading();
+    }
   });
+
+  // Load cached data immediately
+  yield* loadCachedData;
+
+  // Load fresh data in parallel (stale-while-revalidate)
+  // The API functions will return cached data immediately and fetch fresh in background
+  // When fresh data arrives, it updates the cache, and we update the UI
+  const loadFreshData = Effect.gen(function* () {
+    // Fetch projects, timer, and entries in parallel
+    // These will return cached data immediately if available, then fetch fresh
+    const timerEffect = navigator.onLine
+      ? getTimer
+      : Effect.gen(function* () {
+          return yield* getTimerFromLocal();
+        });
+
+    const [projects, timer, entries] = yield* Effect.all(
+      [getProjects, timerEffect, getEntries],
+      { concurrency: "unbounded" }
+    );
+
+    // Update UI with fresh data (may be same as cached, but ensures consistency)
+    yield* Ref.set(refs.projectsRef, projects);
+    yield* populateProjectCombobox(projects);
+
+    // Update timer
+    if (timer) {
+      yield* Ref.set(refs.timerRef, timer);
+      yield* Ref.set(refs.selectedProjectIdRef, timer.projectId);
+      yield* populateProjectCombobox(projects, timer.projectId);
+      yield* startTimerUI(refs.timerRef, refs.intervalRef);
+    } else {
+      yield* showPlayButton();
+    }
+
+    // Update entries
+    yield* renderEntries(entries, projects);
+  });
+
+  // Start loading fresh data (will update UI when ready)
+  // This runs in parallel with the cached data already rendered
+  yield* loadFreshData;
 
   // Set up online/offline listeners
   setupOnlineStatusListeners(refs.timerRef, refs.intervalRef);
 
-  // Create WebSocket connection
-  const ws = createWebSocket(refs, loadInitialData);
+  // Create WebSocket connection (will trigger refresh on updates)
+  const refreshData = Effect.gen(function* () {
+    const timerEffect = navigator.onLine
+      ? getTimer
+      : Effect.gen(function* () {
+          return yield* getTimerFromLocal();
+        });
+
+    const [projects, timer, entries] = yield* Effect.all(
+      [getProjects, timerEffect, getEntries],
+      { concurrency: "unbounded" }
+    );
+
+    yield* Ref.set(refs.projectsRef, projects);
+    yield* populateProjectCombobox(projects);
+
+    if (timer) {
+      yield* Ref.set(refs.timerRef, timer);
+      yield* Ref.set(refs.selectedProjectIdRef, timer.projectId);
+      yield* populateProjectCombobox(projects, timer.projectId);
+      yield* startTimerUI(refs.timerRef, refs.intervalRef);
+    } else {
+      yield* showPlayButton();
+    }
+
+    yield* renderEntries(entries, projects);
+  });
+
+  const ws = createWebSocket(refs, refreshData);
   // Store WebSocket instance for cleanup
   setWebSocketInstance(ws);
 
