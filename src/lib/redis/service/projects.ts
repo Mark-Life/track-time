@@ -20,8 +20,8 @@ export const createProject = (
       yield* Effect.fail(new Error("Project name cannot be empty"));
     }
 
-    if (name.length > 50) {
-      yield* Effect.fail(new Error("Project name cannot exceed 50 characters"));
+    if (name.length > 100) {
+      yield* Effect.fail(new Error("Project name cannot exceed 100 characters"));
     }
 
     const trimmedName = name.trim();
@@ -136,8 +136,8 @@ export const updateProject = (
       yield* Effect.fail(new Error("Project name cannot be empty"));
     }
 
-    if (name.length > 50) {
-      yield* Effect.fail(new Error("Project name cannot exceed 50 characters"));
+    if (name.length > 100) {
+      yield* Effect.fail(new Error("Project name cannot exceed 100 characters"));
     }
 
     const trimmedName = name.trim();

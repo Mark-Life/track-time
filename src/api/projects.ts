@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import { validateProjectName } from "~/lib/entry-validation";
 import {
   RedisLive,
   createProject,
@@ -55,6 +56,8 @@ export const handleProjectCreate = (req: Request, server: Server) =>
             );
           }
 
+          yield* validateProjectName(body.name);
+
           const project = yield* createProject(userId, body.name);
 
           const message: WebSocketMessage = {
@@ -74,6 +77,16 @@ export const handleProjectCreate = (req: Request, server: Server) =>
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
+    }
+    // Validation errors should return 400
+    if (
+      error instanceof Error &&
+      (error.message.includes("Project name") ||
+        error.message.includes("invalid characters") ||
+        error.message.includes("cannot be empty") ||
+        error.message.includes("is required"))
+    ) {
+      return Response.json({ error: error.message }, { status: 400 });
     }
     return Response.json(
       {
@@ -103,6 +116,8 @@ export const handleProjectUpdate = (req: Request, id: string, server: Server) =>
             );
           }
 
+          yield* validateProjectName(body.name);
+
           const project = yield* updateProject(userId, id, body.name);
 
           const message: WebSocketMessage = {
@@ -122,6 +137,16 @@ export const handleProjectUpdate = (req: Request, id: string, server: Server) =>
   ).catch((error) => {
     if (isAuthError(error)) {
       return Response.json({ error: error.message }, { status: 401 });
+    }
+    // Validation errors should return 400
+    if (
+      error instanceof Error &&
+      (error.message.includes("Project name") ||
+        error.message.includes("invalid characters") ||
+        error.message.includes("cannot be empty") ||
+        error.message.includes("is required"))
+    ) {
+      return Response.json({ error: error.message }, { status: 400 });
     }
     return Response.json(
       {

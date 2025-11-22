@@ -64,3 +64,38 @@ export const validateDurationValue = (
     }
   });
 
+const MAX_PROJECT_NAME_LENGTH = 100;
+const PROJECT_NAME_PATTERN = /^[a-zA-Z0-9\s\-_]+$/;
+
+/**
+ * Validates project name for length limits and XSS prevention
+ * @param name - Project name to validate
+ * @returns Effect that succeeds if valid, or fails with error message
+ */
+export const validateProjectName = (
+  name: string
+): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    if (!name || typeof name !== "string") {
+      yield* Effect.fail(new Error("Project name is required"));
+    }
+
+    const trimmed = name.trim();
+    if (trimmed.length === 0) {
+      yield* Effect.fail(new Error("Project name cannot be empty"));
+    }
+
+    if (trimmed.length > MAX_PROJECT_NAME_LENGTH) {
+      yield* Effect.fail(
+        new Error(`Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or less`)
+      );
+    }
+
+    // Prevent XSS - allow only safe characters
+    if (!PROJECT_NAME_PATTERN.test(trimmed)) {
+      yield* Effect.fail(
+        new Error("Project name contains invalid characters. Only letters, numbers, spaces, hyphens, and underscores are allowed.")
+      );
+    }
+  });
+
