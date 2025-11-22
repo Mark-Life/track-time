@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { extractToken, getVerifiedUserId, setVerifiedUserId } from "./auth.ts";
 import { requireCsrfToken } from "./csrf.ts";
 import { verify } from "./jwt.ts";
+import { rateLimitApi } from "./rate-limit-general.ts";
 
 export type Middleware = (
   req: Request
@@ -184,6 +185,63 @@ export const requireAuthForAssets: Middleware = (req) =>
     } catch {
       return createRedirectResponse("/login");
     }
+  });
+
+/**
+ * Rate limiting middleware for API endpoints.
+ * Tracks requests by userId and HTTP method.
+ * Returns 429 Too Many Requests if rate limit exceeded.
+ */
+export const rateLimitApiMiddleware: Middleware = (req) =>
+  Effect.gen(function* () {
+    const url = new URL(req.url);
+    const pathname = url.pathname;
+
+    // Only check rate limit for API routes (not app routes or assets)
+    if (!isApiRoute(pathname)) {
+      return null;
+    }
+
+    // Skip rate limit check for public routes (login/register have their own rate limiting)
+    if (isPublicApiRoute(pathname)) {
+      return null;
+    }
+
+    // Get verified userId (must be authenticated at this point)
+    const userId: string = yield* Effect.catchAll(getVerifiedUserId(req), () =>
+      Effect.fail(new Error("User not authenticated"))
+    );
+
+    // Check rate limit
+    const rateLimitResult = yield* Effect.either(
+      rateLimitApi(userId, req.method)
+    );
+
+    if (rateLimitResult._tag === "Left") {
+      const error = rateLimitResult.left;
+      const resetAt: number = error.resetAt;
+      const remaining: number = error.remaining;
+      const limit: number = error.limit;
+      const retryAfter = Math.ceil(resetAt - Math.floor(Date.now() / 1000));
+
+      return Response.json(
+        {
+          error: "Rate limit exceeded",
+          retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": retryAfter.toString(),
+            "X-RateLimit-Limit": limit.toString(),
+            "X-RateLimit-Remaining": remaining.toString(),
+            "X-RateLimit-Reset": resetAt.toString(),
+          },
+        }
+      );
+    }
+
+    return null;
   });
 
 /**

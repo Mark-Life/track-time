@@ -5,6 +5,7 @@ import { extractToken, isCsrfError } from "../lib/auth/auth.ts";
 import { verify } from "../lib/auth/jwt.ts";
 import {
   compose,
+  rateLimitApiMiddleware,
   requireAuth,
   requireAuthForAssets,
   requireCsrf,
@@ -15,11 +16,13 @@ import { createRedirectResponse } from "./utils.ts";
 
 const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
   // Request size validation runs first to reject oversized requests early
-  // CSRF middleware runs after auth to ensure userId is available
+  // Rate limiting runs after auth to ensure userId is available
+  // CSRF middleware runs after rate limiting
   const middlewareChain = compose(
     validateRequestSize,
     requireAuthForAssets,
     requireAuth,
+    rateLimitApiMiddleware,
     requireCsrf
   );
   const url = new URL(req.url);
