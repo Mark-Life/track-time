@@ -1,10 +1,20 @@
 import "~/global.css";
 import { Effect, Ref } from "effect";
 import { initializeDrawer } from "~/components/ui/drawer.ts";
-import { CacheKeys, getCached } from "~/lib/cache.ts";
-import { getTimerFromLocal } from "~/lib/local-storage.ts";
+import { CacheKeys, getCached, setCached } from "~/lib/cache.ts";
+import { getLocalEntries, getTimerFromLocal } from "~/lib/local-storage.ts";
 import type { Entry, Project, Timer } from "~/lib/types.ts";
-import { createProject, getEntries, getProjects, getTimer } from "./api.ts";
+import { createProject, getEntries } from "./api.ts";
+
+/**
+ * Handles authentication errors (401) by redirecting to login.
+ */
+const handleAuthError = (response: Response): void => {
+  if (response.status === 401) {
+    window.location.href = "/login";
+  }
+};
+
 import {
   type AppRefs,
   appInitialized,
@@ -162,39 +172,101 @@ const initializeApp = Effect.gen(function* () {
   // Load cached data immediately
   yield* loadCachedData;
 
-  // Load fresh data in parallel (stale-while-revalidate)
-  // The API functions will return cached data immediately and fetch fresh in background
-  // When fresh data arrives, it updates the cache, and we update the UI
+  // Load fresh data directly (bypass cache to avoid duplicate requests)
+  // We already have cached data rendered, so fetch fresh without triggering background revalidation
   const loadFreshData = Effect.gen(function* () {
-    // Fetch projects, timer, and entries in parallel
-    // These will return cached data immediately if available, then fetch fresh
-    const timerEffect = navigator.onLine
-      ? getTimer
-      : Effect.gen(function* () {
-          return yield* getTimerFromLocal();
-        });
+    if (!navigator.onLine) {
+      // Offline: use local data
+      const localTimer = yield* getTimerFromLocal();
+      const localEntries = yield* getLocalEntries();
+      return { projects: [], timer: localTimer, entries: localEntries };
+    }
 
-    const [projects, timer, entries] = yield* Effect.all(
-      [getProjects, timerEffect, getEntries],
+    // Fetch fresh data directly (bypass cache revalidation to avoid duplicate requests)
+    const fetchProjects = Effect.gen(function* () {
+      const response = yield* Effect.tryPromise({
+        try: () => fetch("/api/projects", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch projects: ${error}`),
+      });
+      if (!response.ok) {
+        handleAuthError(response);
+        return [];
+      }
+      const projects = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Project[]>,
+        catch: (error) => new Error(`Failed to parse projects JSON: ${error}`),
+      });
+      yield* setCached(CacheKeys.projects, projects);
+      return projects;
+    });
+
+    const fetchTimer = Effect.gen(function* () {
+      const response = yield* Effect.tryPromise({
+        try: () => fetch("/api/timer", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch timer: ${error}`),
+      });
+      if (!response.ok) {
+        handleAuthError(response);
+        const localTimer = yield* getTimerFromLocal();
+        return localTimer;
+      }
+      const timer = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Timer | null>,
+        catch: (error) => new Error(`Failed to parse timer JSON: ${error}`),
+      });
+      if (timer) {
+        yield* setCached(CacheKeys.timer, timer);
+      }
+      return timer;
+    });
+
+    const fetchEntries = Effect.gen(function* () {
+      const localEntries = yield* getLocalEntries();
+      const response = yield* Effect.tryPromise({
+        try: () => fetch("/api/entries", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch entries: ${error}`),
+      });
+      if (!response.ok) {
+        handleAuthError(response);
+        return localEntries;
+      }
+      const entries = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Entry[]>,
+        catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
+      });
+      const serverIds = new Set(entries.map((e) => e.id));
+      const uniqueLocalEntries = localEntries.filter(
+        (e) => !serverIds.has(e.id)
+      );
+      const merged = [...entries, ...uniqueLocalEntries].sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      );
+      yield* setCached(CacheKeys.entries, entries);
+      return merged;
+    });
+
+    const [freshProjects, freshTimer, freshEntries] = yield* Effect.all(
+      [fetchProjects, fetchTimer, fetchEntries],
       { concurrency: "unbounded" }
     );
 
     // Update UI with fresh data (may be same as cached, but ensures consistency)
-    yield* Ref.set(refs.projectsRef, projects);
-    yield* populateProjectCombobox(projects);
+    yield* Ref.set(refs.projectsRef, freshProjects);
+    yield* populateProjectCombobox(freshProjects);
 
     // Update timer
-    if (timer) {
-      yield* Ref.set(refs.timerRef, timer);
-      yield* Ref.set(refs.selectedProjectIdRef, timer.projectId);
-      yield* populateProjectCombobox(projects, timer.projectId);
+    if (freshTimer) {
+      yield* Ref.set(refs.timerRef, freshTimer);
+      yield* Ref.set(refs.selectedProjectIdRef, freshTimer.projectId);
+      yield* populateProjectCombobox(freshProjects, freshTimer.projectId);
       yield* startTimerUI(refs.timerRef, refs.intervalRef);
     } else {
       yield* showPlayButton();
     }
 
     // Update entries
-    yield* renderEntries(entries, projects);
+    yield* renderEntries(freshEntries, freshProjects);
   });
 
   // Start loading fresh data (will update UI when ready)
@@ -204,35 +276,9 @@ const initializeApp = Effect.gen(function* () {
   // Set up online/offline listeners
   setupOnlineStatusListeners(refs.timerRef, refs.intervalRef);
 
-  // Create WebSocket connection (will trigger refresh on updates)
-  const refreshData = Effect.gen(function* () {
-    const timerEffect = navigator.onLine
-      ? getTimer
-      : Effect.gen(function* () {
-          return yield* getTimerFromLocal();
-        });
-
-    const [projects, timer, entries] = yield* Effect.all(
-      [getProjects, timerEffect, getEntries],
-      { concurrency: "unbounded" }
-    );
-
-    yield* Ref.set(refs.projectsRef, projects);
-    yield* populateProjectCombobox(projects);
-
-    if (timer) {
-      yield* Ref.set(refs.timerRef, timer);
-      yield* Ref.set(refs.selectedProjectIdRef, timer.projectId);
-      yield* populateProjectCombobox(projects, timer.projectId);
-      yield* startTimerUI(refs.timerRef, refs.intervalRef);
-    } else {
-      yield* showPlayButton();
-    }
-
-    yield* renderEntries(entries, projects);
-  });
-
-  const ws = createWebSocket(refs, refreshData);
+  // Create WebSocket connection (will trigger refresh on updates via messages)
+  // Note: We don't fetch on WebSocket open since we already fetched on initial load
+  const ws = createWebSocket(refs, null);
   // Store WebSocket instance for cleanup
   setWebSocketInstance(ws);
 

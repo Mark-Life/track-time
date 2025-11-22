@@ -4,7 +4,12 @@ import type { Entry, Project, Timer, WebSocketMessage } from "~/lib/types.ts";
 import { getEntries } from "../api.ts";
 import type { AppRefs } from "../core/app-state.ts";
 import { populateProjectCombobox } from "../features/project-management.ts";
-import { addEntryToList, renderEntries, renderEntryView } from "../ui/dom.ts";
+import {
+  addEntryToList,
+  removeEntryFromDOM,
+  renderEntries,
+  renderEntryView,
+} from "../ui/dom.ts";
 import { startTimerUI, stopTimerUI } from "../ui/timer-ui.ts";
 
 /**
@@ -146,14 +151,13 @@ const handleTimerStopped = (refs: AppRefs, entry: Entry) =>
 /**
  * Handles entry deleted message
  */
-const handleEntryDeleted = (refs: AppRefs) =>
+const handleEntryDeleted = (_refs: AppRefs, entryId: string) =>
   Effect.catchAll(
     Effect.gen(function* () {
+      // Remove from DOM immediately without refetching
+      yield* removeEntryFromDOM(entryId);
+      // Invalidate cache so next fetch gets fresh data
       yield* invalidateCache(CacheKeys.entries);
-      const entries = yield* getEntries;
-      const projects: Project[] = yield* Ref.get(refs.projectsRef);
-      yield* renderEntries(entries, projects);
-      yield* setCached(CacheKeys.entries, entries);
     }),
     (error) => Effect.logError(`Failed to handle entry:deleted: ${error}`)
   );
@@ -219,7 +223,7 @@ export const createWebSocketMessageHandler =
         Effect.runPromise(handleTimerStopped(refs, message.data.entry));
         break;
       case "entry:deleted":
-        Effect.runPromise(handleEntryDeleted(refs));
+        Effect.runPromise(handleEntryDeleted(refs, message.data.id));
         break;
       case "entry:updated":
         Effect.runPromise(handleEntryUpdated(refs, message.data.entry));
@@ -231,21 +235,25 @@ export const createWebSocketMessageHandler =
 
 /**
  * Creates and configures WebSocket connection
+ * @param loadInitialData - Optional effect to run on WebSocket open. If null, no fetch is performed.
  */
 export const createWebSocket = (
   refs: AppRefs,
-  loadInitialData: Effect.Effect<void, Error>
+  loadInitialData: Effect.Effect<void, Error> | null
 ): WebSocket => {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
   ws.onopen = () => {
     Effect.runPromise(Effect.log("WebSocket connected"));
-    Effect.runPromise(
-      Effect.catchAll(loadInitialData, (error) =>
-        Effect.logError(`Failed to load initial data: ${error}`)
-      )
-    );
+    // Only fetch if loadInitialData is provided (skip on initial page load)
+    if (loadInitialData) {
+      Effect.runPromise(
+        Effect.catchAll(loadInitialData, (error) =>
+          Effect.logError(`Failed to load initial data: ${error}`)
+        )
+      );
+    }
   };
 
   ws.onmessage = createWebSocketMessageHandler(refs);

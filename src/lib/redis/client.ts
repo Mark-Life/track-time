@@ -4,6 +4,9 @@ import { Effect } from "effect";
 /**
  * Redis service interface
  */
+// Track if we've already logged the connection (only log once per process)
+let connectionLogged = false;
+
 export class Redis extends Effect.Service<Redis>()("Redis", {
   accessors: true,
   scoped: Effect.gen(function* () {
@@ -17,7 +20,11 @@ export class Redis extends Effect.Service<Redis>()("Redis", {
       )
     );
 
-    yield* Effect.log("✅ Redis connection established");
+    // Only log connection once per process (Bun's Redis client handles connection pooling)
+    if (!connectionLogged) {
+      yield* Effect.log("✅ Redis connection established");
+      connectionLogged = true;
+    }
 
     // Return Redis client wrapper with typed operations
     return {

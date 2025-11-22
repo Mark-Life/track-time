@@ -462,3 +462,23 @@ export const removeEntryDeleteLoading = (entryId: string) =>
     entryElement.style.opacity = "";
     entryElement.style.pointerEvents = "";
   });
+
+/**
+ * Removes an entry from the DOM without refetching
+ */
+export const removeEntryFromDOM = (entryId: string) =>
+  Effect.sync(() => {
+    const entryElement = entriesList.querySelector(
+      `[data-entry-id="${entryId}"]`
+    ) as HTMLElement;
+    if (entryElement) {
+      entryElement.remove();
+    }
+
+    // Show "no entries" message if list is empty
+    const remainingEntries = entriesList.querySelectorAll("[data-entry-id]");
+    if (remainingEntries.length === 0) {
+      entriesList.innerHTML =
+        '<p class="text-gray-500" data-no-entries>No entries yet. Start tracking!</p>';
+    }
+  });
