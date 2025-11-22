@@ -31,23 +31,23 @@ export const extractToken = (
 ): Effect.Effect<string | null, Error> =>
   Effect.sync(() => {
     const cookieHeader = req.headers.get("cookie");
-    console.log("[extractToken] Cookie header:", cookieHeader);
+    // console.log("[extractToken] Cookie header:", cookieHeader);
     const cookies = parseCookieHeader(cookieHeader);
-    console.log("[extractToken] Parsed cookies:", cookies);
+    // console.log("[extractToken] Parsed cookies:", cookies);
 
     const token = cookies["token"];
     if (token) {
-      console.log("[extractToken] Found token in cookies");
+      // console.log("[extractToken] Found token in cookies");
       return token;
     }
 
     const authHeader = req.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) {
-      console.log("[extractToken] Found token in Authorization header");
+      // console.log("[extractToken] Found token in Authorization header");
       return authHeader.slice(7);
     }
 
-    console.log("[extractToken] No token found");
+    // console.log("[extractToken] No token found");
     return null;
   });
 
@@ -256,7 +256,7 @@ export const setAuthCookie = (
   maxAge: number = 7 * 24 * 60 * 60
 ): Response => {
   const useSecure = isHttps(req);
-  console.log("[setAuthCookie] Setting auth cookie, useSecure:", useSecure);
+  // console.log("[setAuthCookie] Setting auth cookie, useSecure:", useSecure);
 
   // Build cookie string with proper formatting
   const cookieParts = [
@@ -273,7 +273,7 @@ export const setAuthCookie = (
   }
 
   const cookieValue = cookieParts.join("; ");
-  console.log("[setAuthCookie] Cookie value:", cookieValue);
+  // console.log("[setAuthCookie] Cookie value:", cookieValue);
   response.headers.set("Set-Cookie", cookieValue);
   return response;
 };
@@ -282,7 +282,10 @@ export const setAuthCookie = (
  * Clears authentication cookie by setting Max-Age=0.
  * Uses same security settings as setAuthCookie for consistency.
  */
-export const clearAuthCookie = (response: Response, req?: Request): Response => {
+export const clearAuthCookie = (
+  response: Response,
+  req?: Request
+): Response => {
   const useSecure = isHttps(req);
 
   const cookieParts = [

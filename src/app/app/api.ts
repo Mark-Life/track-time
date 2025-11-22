@@ -1,4 +1,11 @@
 import { Effect } from "effect";
+import {
+  CacheKeys,
+  clearCache,
+  getCached,
+  invalidateCache,
+  setCached,
+} from "~/lib/cache.ts";
 import { validateEntryDuration } from "~/lib/entry-validation.ts";
 import {
   clearLocalTimer,
@@ -87,6 +94,12 @@ export const getTimer = Effect.gen(function* () {
     return localTimer;
   }
 
+  // Check cache first (short TTL for timer)
+  const cached = yield* getCached<Timer | null>(CacheKeys.timer);
+  if (cached !== null) {
+    return cached;
+  }
+
   const response = yield* Effect.tryPromise({
     try: () => fetch("/api/timer", { credentials: "include" }),
     catch: (error) => new Error(`Failed to fetch timer: ${error}`),
@@ -102,6 +115,9 @@ export const getTimer = Effect.gen(function* () {
     try: () => response.json() as Promise<Timer | null>,
     catch: (error) => new Error(`Failed to parse timer JSON: ${error}`),
   });
+
+  // Cache the result
+  yield* setCached(CacheKeys.timer, timer);
 
   return timer;
 });
@@ -167,6 +183,10 @@ export const startTimer = (startedAt?: string, projectId?: string) =>
         return new Error(`Failed to parse timer JSON: ${error}`);
       },
     });
+
+    // Invalidate timer cache and update it with new value
+    yield* invalidateCache(CacheKeys.timer);
+    yield* setCached(CacheKeys.timer, serverTimer);
 
     return serverTimer;
   });
@@ -255,6 +275,8 @@ export const stopTimer = Effect.gen(function* () {
   });
 
   yield* clearLocalTimer();
+  // Invalidate timer and entries cache
+  yield* invalidateCache([CacheKeys.timer, CacheKeys.entries]);
   return serverEntry;
 });
 
@@ -342,6 +364,9 @@ export const updateTimer = (projectId?: string) =>
 
     // Update local storage with server timer
     yield* saveTimerToLocal(serverTimer);
+    // Invalidate timer cache and update it with new value
+    yield* invalidateCache(CacheKeys.timer);
+    yield* setCached(CacheKeys.timer, serverTimer);
     return serverTimer;
   });
 
@@ -351,6 +376,18 @@ export const getEntries = Effect.gen(function* () {
   if (!navigator.onLine) {
     // Sort entries by start time (newest first) even when offline
     return localEntries.sort(
+      (a, b) =>
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+  }
+
+  // Check cache first
+  const cached = yield* getCached<Entry[]>(CacheKeys.entries);
+  if (cached !== null) {
+    // Merge local and cached server entries, removing duplicates by ID
+    const cachedIds = new Set(cached.map((e) => e.id));
+    const uniqueLocalEntries = localEntries.filter((e) => !cachedIds.has(e.id));
+    return [...cached, ...uniqueLocalEntries].sort(
       (a, b) =>
         new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
@@ -370,6 +407,9 @@ export const getEntries = Effect.gen(function* () {
     try: () => response.json() as Promise<Entry[]>,
     catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
   });
+
+  // Cache the server entries
+  yield* setCached(CacheKeys.entries, serverEntries);
 
   // Merge local and server entries, removing duplicates by ID
   const serverIds = new Set(serverEntries.map((e) => e.id));
@@ -457,6 +497,8 @@ export const updateEntry = (
 
     // Update localStorage with server entry
     yield* updateLocalEntry(serverEntry);
+    // Invalidate entries cache
+    yield* invalidateCache(CacheKeys.entries);
     return serverEntry;
   });
 
@@ -504,6 +546,8 @@ export const deleteEntry = (id: string) =>
 
     // Also remove from localStorage if it exists there
     yield* clearSyncedEntry(id);
+    // Invalidate entries cache
+    yield* invalidateCache(CacheKeys.entries);
   });
 
 export const getProjects = Effect.gen(function* () {
@@ -512,6 +556,13 @@ export const getProjects = Effect.gen(function* () {
     return [];
   }
 
+  // Check cache first
+  const cached = yield* getCached<Project[]>(CacheKeys.projects);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Fetch from API
   const response = yield* Effect.tryPromise({
     try: () => fetch("/api/projects", { credentials: "include" }),
     catch: (error) => new Error(`Failed to fetch projects: ${error}`),
@@ -526,6 +577,9 @@ export const getProjects = Effect.gen(function* () {
     try: () => response.json() as Promise<Project[]>,
     catch: (error) => new Error(`Failed to parse projects JSON: ${error}`),
   });
+
+  // Cache the result
+  yield* setCached(CacheKeys.projects, projects);
 
   return projects;
 });
@@ -579,6 +633,9 @@ export const createProject = (name: string) =>
       catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
     });
 
+    // Invalidate projects cache
+    yield* invalidateCache(CacheKeys.projects);
+
     return project;
   });
 
@@ -631,6 +688,9 @@ export const updateProject = (id: string, name: string) =>
       catch: (error) => new Error(`Failed to parse project JSON: ${error}`),
     });
 
+    // Invalidate projects cache
+    yield* invalidateCache(CacheKeys.projects);
+
     return project;
   });
 
@@ -674,11 +734,24 @@ export const deleteProject = (id: string, deleteEntries: boolean) =>
       });
       yield* Effect.fail(new Error(errorData.error));
     }
+
+    // Invalidate projects cache and entries cache (if entries were deleted)
+    yield* invalidateCache([CacheKeys.projects, CacheKeys.entries]);
   });
 
 export const getCurrentUser = Effect.gen(function* () {
   if (!navigator.onLine) {
     yield* Effect.fail(new Error("Cannot get user while offline"));
+  }
+
+  // Check cache first (long TTL for user)
+  const cached = yield* getCached<{
+    id: string;
+    email: string;
+    createdAt: string;
+  }>(CacheKeys.user);
+  if (cached !== null) {
+    return cached;
   }
 
   const response: Response = yield* Effect.tryPromise({
@@ -698,6 +771,9 @@ export const getCurrentUser = Effect.gen(function* () {
       }>,
     catch: (error) => new Error(`Failed to parse user JSON: ${error}`),
   });
+
+  // Cache the result
+  yield* setCached(CacheKeys.user, data.user);
 
   return data.user;
 });
@@ -720,6 +796,9 @@ export const logout = Effect.gen(function* () {
     handleAuthError(response);
     yield* Effect.fail(new Error("Failed to logout"));
   }
+
+  // Clear all cache on logout
+  yield* clearCache();
 
   // Redirect to login page after successful logout
   window.location.href = "/login";

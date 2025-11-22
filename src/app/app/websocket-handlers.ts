@@ -1,4 +1,5 @@
 import { Effect, Ref } from "effect";
+import { CacheKeys, invalidateCache, setCached } from "~/lib/cache.ts";
 import type { Project, Timer, WebSocketMessage } from "~/lib/types.ts";
 import { getEntries } from "./api.ts";
 import {
@@ -32,17 +33,21 @@ export const createWebSocketMessageHandler = (
     if (message.type === "timer:started") {
       const startedAt = message.data.startedAt;
       const projectId = message.data.projectId;
+      const timer: Timer = {
+        startedAt,
+        ...(projectId ? { projectId } : {}),
+      };
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
-            yield* Ref.set(refs.timerRef, {
-              startedAt,
-              ...(projectId ? { projectId } : {}),
-            });
+            yield* Ref.set(refs.timerRef, timer);
             yield* Ref.set(refs.selectedProjectIdRef, projectId);
             const currentProjects = yield* Ref.get(refs.projectsRef);
             yield* populateProjectCombobox(currentProjects, projectId);
             yield* startTimerUI(refs.timerRef, refs.intervalRef);
+            // Invalidate timer cache and update it
+            yield* invalidateCache(CacheKeys.timer);
+            yield* setCached(CacheKeys.timer, timer);
           }),
           (error) => Effect.logError(`Failed to handle timer:started: ${error}`)
         )
@@ -50,16 +55,20 @@ export const createWebSocketMessageHandler = (
     } else if (message.type === "timer:updated") {
       const startedAt = message.data.startedAt;
       const projectId = message.data.projectId;
+      const timer: Timer = {
+        startedAt,
+        ...(projectId ? { projectId } : {}),
+      };
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
-            yield* Ref.set(refs.timerRef, {
-              startedAt,
-              ...(projectId ? { projectId } : {}),
-            });
+            yield* Ref.set(refs.timerRef, timer);
             yield* Ref.set(refs.selectedProjectIdRef, projectId);
             const currentProjects = yield* Ref.get(refs.projectsRef);
             yield* populateProjectCombobox(currentProjects, projectId);
+            // Invalidate timer cache and update it
+            yield* invalidateCache(CacheKeys.timer);
+            yield* setCached(CacheKeys.timer, timer);
           }),
           (error) => Effect.logError(`Failed to handle timer:updated: ${error}`)
         )
@@ -84,6 +93,8 @@ export const createWebSocketMessageHandler = (
               const selectedId = yield* Ref.get(refs.selectedProjectIdRef);
               yield* populateProjectCombobox(updatedProjects, selectedId);
             }
+            // Update cache with fresh data (optimistic update)
+            yield* setCached(CacheKeys.projects, updatedProjects);
           }),
           (error) =>
             Effect.logError(`Failed to handle project:created: ${error}`)
@@ -101,6 +112,8 @@ export const createWebSocketMessageHandler = (
             yield* Ref.set(refs.projectsRef, updatedProjects);
             const selectedId = yield* Ref.get(refs.selectedProjectIdRef);
             yield* populateProjectCombobox(updatedProjects, selectedId);
+            // Update cache with fresh data (optimistic update)
+            yield* setCached(CacheKeys.projects, updatedProjects);
           }),
           (error) =>
             Effect.logError(`Failed to handle project:updated: ${error}`)
@@ -119,9 +132,14 @@ export const createWebSocketMessageHandler = (
               yield* Ref.set(refs.selectedProjectIdRef, undefined);
             }
             yield* populateProjectCombobox(updatedProjects, selectedId);
-            // Reload entries to reflect project deletion
+            // Update projects cache with fresh data
+            yield* setCached(CacheKeys.projects, updatedProjects);
+            // Invalidate entries cache and reload
+            yield* invalidateCache(CacheKeys.entries);
             const entries = yield* getEntries;
             yield* renderEntries(entries, updatedProjects);
+            // Update entries cache with fresh data
+            yield* setCached(CacheKeys.entries, entries);
           }),
           (error) =>
             Effect.logError(`Failed to handle project:deleted: ${error}`)
@@ -136,6 +154,8 @@ export const createWebSocketMessageHandler = (
             yield* Ref.set(refs.timerRef, null);
             const projects = yield* Ref.get(refs.projectsRef);
             yield* addEntryToList(entry, projects);
+            // Invalidate timer and entries cache
+            yield* invalidateCache([CacheKeys.timer, CacheKeys.entries]);
           }),
           (error) => Effect.logError(`Failed to handle timer:stopped: ${error}`)
         )
@@ -144,9 +164,13 @@ export const createWebSocketMessageHandler = (
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
+            // Invalidate entries cache and fetch fresh data
+            yield* invalidateCache(CacheKeys.entries);
             const entries = yield* getEntries;
             const projects = yield* Ref.get(refs.projectsRef);
             yield* renderEntries(entries, projects);
+            // Update cache with fresh entries
+            yield* setCached(CacheKeys.entries, entries);
           }),
           (error) => Effect.logError(`Failed to handle entry:deleted: ${error}`)
         )
@@ -156,8 +180,12 @@ export const createWebSocketMessageHandler = (
       Effect.runPromise(
         Effect.catchAll(
           Effect.gen(function* () {
+            // Invalidate entries cache to ensure fresh data on next fetch
+            yield* invalidateCache(CacheKeys.entries);
             const projects = yield* Ref.get(refs.projectsRef);
             yield* renderEntryView(entry, projects);
+            // Note: We don't update cache here because we only have one entry
+            // The cache will be updated on next getEntries() call
           }),
           (error) => Effect.logError(`Failed to handle entry:updated: ${error}`)
         )
