@@ -1,5 +1,9 @@
 import { Effect } from "effect";
-import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import {
+  createAuthErrorResponse,
+  getVerifiedUserId,
+  isAuthError,
+} from "~/lib/auth/auth";
 import { validateEntryDuration } from "~/lib/entry-validation.ts";
 import { deleteEntry, getEntries, RedisLive, updateEntry } from "~/lib/redis";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
@@ -66,7 +70,7 @@ export const handleEntriesGet = (req: Request) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {
@@ -113,7 +117,7 @@ export const handleEntryUpdate = (req: Request, id: string, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {
@@ -148,7 +152,7 @@ export const handleEntryDelete = (req: Request, id: string, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {

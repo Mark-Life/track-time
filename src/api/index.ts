@@ -156,9 +156,12 @@ const safePromise = (promise: Promise<Response>): Promise<Response> =>
         { status: 403 }
       );
     }
-    // Check if it's an auth error - return 401
+    // Check if it's an auth error - return 401 with sanitized message
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return Response.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
     }
     return Response.json(
       {

@@ -222,8 +222,19 @@ export const extractErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
-export const createAuthErrorResponse = (message: string): Response =>
-  Response.json({ error: message }, { status: 401 });
+/**
+ * Sanitizes auth error messages to prevent information disclosure.
+ * Always returns a generic message to prevent user enumeration attacks.
+ */
+export const sanitizeAuthErrorMessage = (): string =>
+  "Invalid email or password";
+
+/**
+ * Creates a sanitized auth error response.
+ * Always uses generic message to prevent information disclosure.
+ */
+export const createAuthErrorResponse = (_message?: string): Response =>
+  Response.json({ error: sanitizeAuthErrorMessage() }, { status: 401 });
 
 export const createAuthSuccessResponse = (data: unknown): Response =>
   Response.json(data);

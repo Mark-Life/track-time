@@ -1,5 +1,9 @@
 import { Effect } from "effect";
-import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import {
+  createAuthErrorResponse,
+  getVerifiedUserId,
+  isAuthError,
+} from "~/lib/auth/auth";
 import {
   getActiveTimer,
   RedisLive,
@@ -84,7 +88,7 @@ export const handleTimerGet = (req: Request) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {
@@ -128,7 +132,7 @@ export const handleTimerStart = (req: Request, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {
@@ -169,7 +173,7 @@ export const handleTimerUpdate = (req: Request, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {
@@ -208,7 +212,7 @@ export const handleTimerStop = (req: Request, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {

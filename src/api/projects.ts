@@ -1,5 +1,9 @@
 import { Effect } from "effect";
-import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import {
+  createAuthErrorResponse,
+  getVerifiedUserId,
+  isAuthError,
+} from "~/lib/auth/auth";
 import { validateProjectName } from "~/lib/entry-validation";
 import {
   RedisLive,
@@ -26,7 +30,7 @@ export const handleProjectsGet = (req: Request) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {
@@ -76,7 +80,7 @@ export const handleProjectCreate = (req: Request, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     // Validation errors should return 400
     if (
@@ -136,7 +140,7 @@ export const handleProjectUpdate = (req: Request, id: string, server: Server) =>
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     // Validation errors should return 400
     if (
@@ -186,7 +190,7 @@ export const handleProjectDelete = (
     )
   ).catch((error) => {
     if (isAuthError(error)) {
-      return Response.json({ error: error.message }, { status: 401 });
+      return createAuthErrorResponse();
     }
     return Response.json(
       {

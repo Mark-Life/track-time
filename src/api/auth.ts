@@ -3,7 +3,6 @@ import {
   clearAuthCookie,
   createAuthErrorResponse,
   createAuthSuccessResponse,
-  extractErrorMessage,
   isAuthError,
   requireAuth,
   setAuthCookie,
@@ -86,7 +85,7 @@ export const handleRegister = (req: Request) =>
     })
   ).catch((error) => {
     if (isAuthError(error)) {
-      return createAuthErrorResponse(error.message);
+      return createAuthErrorResponse("");
     }
 
     return Response.json(
@@ -165,7 +164,7 @@ export const handleLogin = (req: Request) => {
     console.error("[handleLogin] Error caught:", error);
     if (isAuthError(error)) {
       console.error("[handleLogin] Auth error:", error.message);
-      return createAuthErrorResponse(error.message);
+      return createAuthErrorResponse("");
     }
 
     console.error("[handleLogin] Unexpected error:", error);
@@ -202,7 +201,7 @@ export const handleMe = async (req: Request): Promise<Response> => {
           const user = yield* getUserById(userId);
 
           if (!user) {
-            yield* Effect.fail(new AuthError("User not found"));
+            yield* Effect.fail(new AuthError("Invalid email or password"));
           }
 
           // TypeScript doesn't narrow after Effect.fail, so we assert non-null
@@ -229,7 +228,7 @@ export const handleMe = async (req: Request): Promise<Response> => {
         isAuthError(error)
       );
       if (isAuthError(error)) {
-        return createAuthErrorResponse(extractErrorMessage(error));
+        return createAuthErrorResponse("");
       }
 
       console.error("handleMe: Returning 500 for non-auth error:", error);
@@ -243,7 +242,7 @@ export const handleMe = async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error("handleMe: Unhandled exception:", error);
     if (isAuthError(error)) {
-      return createAuthErrorResponse(extractErrorMessage(error));
+      return createAuthErrorResponse("");
     }
     return Response.json(
       {
@@ -266,7 +265,7 @@ export const handleRefreshToken = async (req: Request): Promise<Response> => {
           const user = yield* getUserById(userId);
 
           if (!user) {
-            yield* Effect.fail(new AuthError("User not found"));
+            yield* Effect.fail(new AuthError("Invalid email or password"));
           }
 
           // TypeScript doesn't narrow after Effect.fail, so we assert non-null
@@ -296,7 +295,7 @@ export const handleRefreshToken = async (req: Request): Promise<Response> => {
       )(req)
     ).catch((error) => {
       if (isAuthError(error)) {
-        return createAuthErrorResponse(extractErrorMessage(error));
+        return createAuthErrorResponse("");
       }
 
       return Response.json(
@@ -309,7 +308,7 @@ export const handleRefreshToken = async (req: Request): Promise<Response> => {
     });
   } catch (error) {
     if (isAuthError(error)) {
-      return createAuthErrorResponse(extractErrorMessage(error));
+      return createAuthErrorResponse("");
     }
     return Response.json(
       {
@@ -337,7 +336,7 @@ export const handleCsrfToken = async (req: Request): Promise<Response> => {
       )(req)
     ).catch((error) => {
       if (isAuthError(error)) {
-        return createAuthErrorResponse(extractErrorMessage(error));
+        return createAuthErrorResponse("");
       }
 
       return Response.json(
@@ -352,7 +351,7 @@ export const handleCsrfToken = async (req: Request): Promise<Response> => {
     });
   } catch (error) {
     if (isAuthError(error)) {
-      return createAuthErrorResponse(extractErrorMessage(error));
+      return createAuthErrorResponse("");
     }
     return Response.json(
       {
