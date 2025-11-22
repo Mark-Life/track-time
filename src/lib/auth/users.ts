@@ -275,10 +275,15 @@ export const authenticateUser = (
       yield* Effect.fail(new AuthError("Invalid email or password"));
     }
 
+    const disabledValue = userData["disabled"];
+    const disabled =
+      disabledValue === "true" || disabledValue === true || disabledValue === "1";
+
     const user: User = {
       id: userId as string,
       email: userData["email"] as string,
       createdAt: userData["createdAt"] as string,
+      disabled: disabled || undefined,
     };
 
     return user;
@@ -302,10 +307,15 @@ export const getUserById = (
       return null;
     }
 
+    const disabledValue = userData["disabled"];
+    const disabled =
+      disabledValue === "true" || disabledValue === true || disabledValue === "1";
+
     const user: User = {
       id: id as string,
       email: userData["email"] as string,
       createdAt: userData["createdAt"] as string,
+      disabled: disabled || undefined,
     };
 
     return user;

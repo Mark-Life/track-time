@@ -11,6 +11,7 @@ import {
   requireCsrf,
   validateRequestSize,
 } from "../lib/auth/middleware.ts";
+import { getUserById } from "../lib/auth/users.ts";
 import type { Server, WebSocketData } from "./types.ts";
 import { createRedirectResponse } from "./utils.ts";
 
@@ -210,6 +211,12 @@ export const handleWebSocketUpgrade = async (
     }
 
     const payload = await Effect.runPromise(verify(token));
+    const user = await Effect.runPromise(getUserById(payload.userId));
+
+    if (!user || user.disabled) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const upgraded = srv.upgrade(req, {
       data: {
         userId: payload.userId,
