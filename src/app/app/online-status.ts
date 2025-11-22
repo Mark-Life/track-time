@@ -1,4 +1,4 @@
-import { Effect, Ref } from "effect";
+import { Effect, type Ref } from "effect";
 import type { Timer } from "~/lib/types.ts";
 import {
   hideOfflineIndicator,
@@ -54,4 +54,3 @@ export const setupOnlineStatusListeners = (
     );
   });
 };
-

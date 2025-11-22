@@ -250,9 +250,11 @@ const initializeApp = Effect.gen(function* () {
   // Setup project creation handlers
   setupProjectCreationHandlers(
     refs,
-    projectInputContainer,
-    projectNameInput,
-    projectSubmitBtn,
+    {
+      container: projectInputContainer,
+      input: projectNameInput,
+      submitBtn: projectSubmitBtn,
+    },
     createProject as (
       name: string
     ) => Effect.Effect<Project, Error | { error: string }>

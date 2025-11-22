@@ -72,7 +72,7 @@ export const handleProjectSelection = (
     );
     yield* Ref.set(selectedProjectIdRef, projectId);
     // If timer is running, update it with the new project
-    const timer = yield* Ref.get(timerRef);
+    const timer: Timer | null = yield* Ref.get(timerRef);
     if (timer) {
       yield* updateTimerForProject(timer, projectId, timerRef);
     } else {
@@ -112,17 +112,21 @@ export const initializeProjectCombobox = (
  */
 export const setupProjectCreationHandlers = (
   refs: AppRefs,
-  projectInputContainer: HTMLElement,
-  projectNameInput: HTMLInputElement,
-  projectSubmitBtn: HTMLButtonElement,
-  createProjectFn: (name: string) => Effect.Effect<Project, Error | { error: string }>
+  elements: {
+    container: HTMLElement;
+    input: HTMLInputElement;
+    submitBtn: HTMLButtonElement;
+  },
+  createProjectFn: (
+    name: string
+  ) => Effect.Effect<Project, Error | { error: string }>
 ) => {
   const handleProjectCreate = () =>
     Effect.gen(function* () {
-      const name = projectNameInput.value.trim();
+      const name = elements.input.value.trim();
       if (!name) {
-        projectInputContainer.classList.add("hidden");
-        projectNameInput.value = "";
+        elements.container.classList.add("hidden");
+        elements.input.value = "";
         return;
       }
 
@@ -130,8 +134,8 @@ export const setupProjectCreationHandlers = (
         const project = yield* createProjectFn(name);
         // Store the project ID so WebSocket handler can select it
         yield* Ref.set(refs.pendingProjectIdRef, project.id);
-        projectInputContainer.classList.add("hidden");
-        projectNameInput.value = "";
+        elements.container.classList.add("hidden");
+        elements.input.value = "";
         // Project will be added via WebSocket message
       } catch (error) {
         yield* Ref.set(refs.pendingProjectIdRef, null);
@@ -142,7 +146,7 @@ export const setupProjectCreationHandlers = (
       }
     });
 
-  projectNameInput.addEventListener("keydown", (e) => {
+  elements.input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       Effect.runPromise(
         Effect.catchAll(handleProjectCreate(), (error) =>
@@ -150,24 +154,19 @@ export const setupProjectCreationHandlers = (
         )
       );
     } else if (e.key === "Escape") {
-      projectInputContainer.classList.add("hidden");
-      projectNameInput.value = "";
+      elements.container.classList.add("hidden");
+      elements.input.value = "";
     }
   });
 
-  projectNameInput.addEventListener("blur", (e) => {
-    // Don't create on blur if user clicked the submit button
-    if (e.relatedTarget === projectSubmitBtn) {
-      return;
-    }
-    Effect.runPromise(
-      Effect.catchAll(handleProjectCreate(), (error) =>
-        Effect.logError(`Failed to create project: ${error}`)
-      )
-    );
+  elements.input.addEventListener("blur", () => {
+    // Just hide the input container and clear the value on blur
+    // Project creation only happens via submit button or Enter key
+    elements.container.classList.add("hidden");
+    elements.input.value = "";
   });
 
-  projectSubmitBtn.addEventListener("click", () => {
+  elements.submitBtn.addEventListener("click", () => {
     Effect.runPromise(
       Effect.catchAll(handleProjectCreate(), (error) =>
         Effect.logError(`Failed to create project: ${error}`)
@@ -175,4 +174,3 @@ export const setupProjectCreationHandlers = (
     );
   });
 };
-
