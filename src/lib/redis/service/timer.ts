@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import type { Entry, Timer } from "~/lib/types.ts";
+import { validateEntryDuration } from "~/lib/entry-validation.ts";
 import { Redis } from "../client.ts";
 
 const userKey = (userId: string, key: string): string =>
@@ -106,6 +107,8 @@ export const stopTimer = (
     }
 
     const endedAt = new Date().toISOString();
+    yield* validateEntryDuration(timer.startedAt, endedAt);
+
     const startTime = new Date(timer.startedAt).getTime();
     const endTime = new Date(endedAt).getTime();
     const duration = (endTime - startTime) / (1000 * 60 * 60);

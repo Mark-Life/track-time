@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import type { Entry } from "~/lib/types.ts";
+import { validateEntryDuration } from "~/lib/entry-validation.ts";
 import { Redis } from "../client.ts";
 
 const userKey = (userId: string, key: string): string =>
@@ -89,28 +90,13 @@ export const updateEntry = ({
       yield* Effect.fail(new Error(`Entry with id ${id} not found`));
     }
 
+    yield* validateEntryDuration(startedAt, endedAt);
+
     const startedAtDate = new Date(startedAt);
     const endedAtDate = new Date(endedAt);
-
-    if (Number.isNaN(startedAtDate.getTime())) {
-      yield* Effect.fail(
-        new Error("Invalid startedAt format. Expected ISO string.")
-      );
-    }
-
-    if (Number.isNaN(endedAtDate.getTime())) {
-      yield* Effect.fail(
-        new Error("Invalid endedAt format. Expected ISO string.")
-      );
-    }
-
     const startTime = startedAtDate.getTime();
     const endTime = endedAtDate.getTime();
     const duration = (endTime - startTime) / (1000 * 60 * 60);
-
-    if (duration < 0) {
-      yield* Effect.fail(new Error("End time must be after start time"));
-    }
 
     const entry: Entry = {
       id,

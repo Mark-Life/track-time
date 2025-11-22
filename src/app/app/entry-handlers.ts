@@ -52,6 +52,18 @@ export const validateEntryForm = (
     return { valid: false, error: "End time must be after start time" };
   }
 
+  const startTime = startedAtDate.getTime();
+  const endTime = endedAtDate.getTime();
+  const duration = (endTime - startTime) / (1000 * 60 * 60);
+  const MAX_DURATION_HOURS = 168; // 1 week
+
+  if (duration > MAX_DURATION_HOURS) {
+    return {
+      valid: false,
+      error: `Duration cannot exceed ${MAX_DURATION_HOURS} hours (1 week)`,
+    };
+  }
+
   return {
     valid: true,
     startedAt: startedAtDate.toISOString(),

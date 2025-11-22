@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { getVerifiedUserId, isAuthError } from "~/lib/auth/auth";
+import { validateEntryDuration } from "~/lib/entry-validation.ts";
 import { deleteEntry, getEntries, RedisLive, updateEntry } from "~/lib/redis";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 
@@ -32,26 +33,13 @@ const validateEntryDates = (
     );
   }
 
-  const startedAtDate = new Date(startedAt);
-  const endedAtDate = new Date(endedAt);
+  const validationResult = Effect.runSync(
+    Effect.either(validateEntryDuration(startedAt, endedAt))
+  );
 
-  if (Number.isNaN(startedAtDate.getTime())) {
+  if (validationResult._tag === "Left") {
     return Response.json(
-      { error: "Invalid startedAt format. Expected ISO string." },
-      { status: 400 }
-    );
-  }
-
-  if (Number.isNaN(endedAtDate.getTime())) {
-    return Response.json(
-      { error: "Invalid endedAt format. Expected ISO string." },
-      { status: 400 }
-    );
-  }
-
-  if (endedAtDate.getTime() <= startedAtDate.getTime()) {
-    return Response.json(
-      { error: "End time must be after start time" },
+      { error: validationResult.left.message },
       { status: 400 }
     );
   }

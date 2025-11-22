@@ -8,13 +8,16 @@ import {
   requireAuth,
   requireAuthForAssets,
   requireCsrf,
+  validateRequestSize,
 } from "../lib/auth/middleware.ts";
 import type { Server, WebSocketData } from "./types.ts";
 import { createRedirectResponse } from "./utils.ts";
 
 const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
+  // Request size validation runs first to reject oversized requests early
   // CSRF middleware runs after auth to ensure userId is available
   const middlewareChain = compose(
+    validateRequestSize,
     requireAuthForAssets,
     requireAuth,
     requireCsrf

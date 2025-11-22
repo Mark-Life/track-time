@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { validateEntryDuration } from "~/lib/entry-validation.ts";
 import {
   clearLocalTimer,
   clearSyncedEntry,
@@ -187,6 +188,8 @@ export const stopTimer = Effect.gen(function* () {
   }
 
   const endedAt = new Date().toISOString();
+  yield* validateEntryDuration(timer.startedAt, endedAt);
+
   const startTime = new Date(timer.startedAt).getTime();
   const endTime = new Date(endedAt).getTime();
   const duration = (endTime - startTime) / (1000 * 60 * 60);
@@ -383,13 +386,11 @@ export const updateEntry = (
   projectId?: string
 ): Effect.Effect<Entry, Error> =>
   Effect.gen(function* () {
+    yield* validateEntryDuration(startedAt, endedAt);
+
     const startTime = new Date(startedAt).getTime();
     const endTime = new Date(endedAt).getTime();
     const duration = (endTime - startTime) / (1000 * 60 * 60);
-
-    if (duration < 0) {
-      yield* Effect.fail(new Error("End time must be after start time"));
-    }
 
     const entry: Entry = {
       id,

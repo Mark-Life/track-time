@@ -70,6 +70,50 @@ const isAssetPath = (pathname: string): boolean => {
   return false;
 };
 
+const MAX_REQUEST_SIZE = 1024 * 1024; // 1 MB
+
+/**
+ * Validates request size to prevent oversized requests.
+ * Checks Content-Length header for requests with bodies.
+ */
+export const validateRequestSize: Middleware = (req) => {
+  // Only check requests with bodies
+  const hasBody =
+    req.method === "POST" || req.method === "PUT" || req.method === "PATCH";
+
+  if (!hasBody) {
+    return Effect.succeed(null);
+  }
+
+  const contentLength = req.headers.get("content-length");
+
+  if (contentLength) {
+    const size = Number.parseInt(contentLength, 10);
+
+    if (Number.isNaN(size) || size < 0) {
+      return Effect.succeed(
+        Response.json(
+          { error: "Invalid Content-Length header" },
+          { status: 400 }
+        )
+      );
+    }
+
+    if (size > MAX_REQUEST_SIZE) {
+      return Effect.succeed(
+        Response.json(
+          {
+            error: `Request body too large. Maximum size is ${MAX_REQUEST_SIZE} bytes (1 MB)`,
+          },
+          { status: 413 }
+        )
+      );
+    }
+  }
+
+  return Effect.succeed(null);
+};
+
 export const requireAuth: Middleware = (req) =>
   Effect.gen(function* () {
     const url = new URL(req.url);

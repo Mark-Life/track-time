@@ -64,6 +64,7 @@ const initializeApp = Effect.gen(function* () {
   yield* initializeDrawer();
 
   // Load user email first
+  // TODO: move this to be suspended
   yield* loadUserEmail;
 
   // Setup logout button
