@@ -23,6 +23,15 @@ console.log("\n🚀 Starting build process...\n");
 
 const start = performance.now();
 
+// Create a temporary manifest.json at root for Bun's HTML bundler to resolve during build
+// This file will be served by the server at runtime from src/assets/manifest.json
+const manifestPath = join("src", "assets", "manifest.json");
+const tempManifestPath = join(".", "manifest.json");
+if (existsSync(manifestPath)) {
+  await cp(manifestPath, tempManifestPath);
+  console.log("📋 Created temporary manifest.json for build...");
+}
+
 // Build the server entry point which includes HTML imports
 // Bun's bundler automatically processes HTML imports and bundles frontend assets
 // HTML imports (landing, login) will be bundled as manifest objects
@@ -65,6 +74,7 @@ console.log("\n📋 Copying source files for runtime...");
 const sourceDirs = [
   { from: "src/app", to: join(outdir, "src/app") },
   { from: "src/lib", to: join(outdir, "src/lib") },
+  { from: "src/assets", to: join(outdir, "src/assets") },
 ];
 
 for (const { from, to } of sourceDirs) {
@@ -82,6 +92,12 @@ const distGlobalCssPath = join(outdir, "src", "global.css");
 if (existsSync(globalCssPath)) {
   await cp(globalCssPath, distGlobalCssPath);
   console.log(`   ✓ Copied ${globalCssPath} → ${distGlobalCssPath}`);
+}
+
+// Clean up temporary manifest.json file created for build
+if (existsSync(tempManifestPath)) {
+  await rm(tempManifestPath);
+  console.log("   ✓ Cleaned up temporary manifest.json");
 }
 
 const end = performance.now();
