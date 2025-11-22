@@ -12,4 +12,3 @@ export const chevronIcon = (size = 16): string => `<svg
 >
   <path d="m6 9 6 6 6-6" />
 </svg>`;
-

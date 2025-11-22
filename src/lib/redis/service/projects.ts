@@ -21,7 +21,9 @@ export const createProject = (
     }
 
     if (name.length > 100) {
-      yield* Effect.fail(new Error("Project name cannot exceed 100 characters"));
+      yield* Effect.fail(
+        new Error("Project name cannot exceed 100 characters")
+      );
     }
 
     const trimmedName = name.trim();
@@ -137,7 +139,9 @@ export const updateProject = (
     }
 
     if (name.length > 100) {
-      yield* Effect.fail(new Error("Project name cannot exceed 100 characters"));
+      yield* Effect.fail(
+        new Error("Project name cannot exceed 100 characters")
+      );
     }
 
     const trimmedName = name.trim();

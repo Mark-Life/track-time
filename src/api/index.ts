@@ -117,7 +117,7 @@ const handleProjectsRoutes = (
 
 const handleAuthRoutes = (url: URL, req: Request): Promise<Response> | null => {
   console.log("[handleAuthRoutes] Route:", url.pathname, "Method:", req.method);
-  
+
   if (url.pathname === "/api/auth/register" && req.method === "POST") {
     return handleRegister(req);
   }
@@ -152,7 +152,9 @@ const safePromise = (promise: Promise<Response>): Promise<Response> =>
     // Check if it's a CSRF error - return 403
     if (isCsrfError(error)) {
       return Response.json(
-        { error: error instanceof Error ? error.message : "CSRF token required" },
+        {
+          error: error instanceof Error ? error.message : "CSRF token required",
+        },
         { status: 403 }
       );
     }

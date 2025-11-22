@@ -24,4 +24,3 @@ export {
   getProjects,
   updateProject,
 } from "./service/projects.ts";
-

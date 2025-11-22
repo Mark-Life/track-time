@@ -36,7 +36,12 @@ const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
         if (pathname.startsWith("/api")) {
           return Effect.succeed(
             Response.json(
-              { error: error instanceof Error ? error.message : "CSRF token required" },
+              {
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "CSRF token required",
+              },
               { status: 403 }
             )
           );

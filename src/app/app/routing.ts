@@ -99,4 +99,3 @@ export const initializeRouting = (
     handleRouteNavigation(route, initializeApp);
   });
 };
-

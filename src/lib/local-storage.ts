@@ -75,7 +75,9 @@ export const updateLocalEntry = (updatedEntry: Entry) =>
     const entries = yield* getLocalEntries();
     yield* Effect.sync(() => {
       try {
-        const index = entries.findIndex((entry) => entry.id === updatedEntry.id);
+        const index = entries.findIndex(
+          (entry) => entry.id === updatedEntry.id
+        );
         if (index === -1) {
           entries.push(updatedEntry);
         } else {

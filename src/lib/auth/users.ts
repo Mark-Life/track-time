@@ -277,7 +277,9 @@ export const authenticateUser = (
 
     const disabledValue = userData["disabled"];
     const disabled =
-      disabledValue === "true" || disabledValue === true || disabledValue === "1";
+      disabledValue === "true" ||
+      disabledValue === true ||
+      disabledValue === "1";
 
     const user: User = {
       id: userId as string,
@@ -309,7 +311,9 @@ export const getUserById = (
 
     const disabledValue = userData["disabled"];
     const disabled =
-      disabledValue === "true" || disabledValue === true || disabledValue === "1";
+      disabledValue === "true" ||
+      disabledValue === true ||
+      disabledValue === "1";
 
     const user: User = {
       id: id as string,

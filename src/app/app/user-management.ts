@@ -63,4 +63,3 @@ export const setupLogout = () => {
     newDrawerLogoutBtn.addEventListener("click", handleLogout);
   }
 };
-

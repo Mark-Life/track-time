@@ -18,11 +18,15 @@ export const validateEntryDuration = (
     const endedAtDate = new Date(endedAt);
 
     if (Number.isNaN(startedAtDate.getTime())) {
-      yield* Effect.fail(new Error("Invalid startedAt format. Expected ISO string."));
+      yield* Effect.fail(
+        new Error("Invalid startedAt format. Expected ISO string.")
+      );
     }
 
     if (Number.isNaN(endedAtDate.getTime())) {
-      yield* Effect.fail(new Error("Invalid endedAt format. Expected ISO string."));
+      yield* Effect.fail(
+        new Error("Invalid endedAt format. Expected ISO string.")
+      );
     }
 
     const startTime = startedAtDate.getTime();
@@ -30,9 +34,7 @@ export const validateEntryDuration = (
     const duration = (endTime - startTime) / (1000 * 60 * 60);
 
     if (duration < MIN_DURATION_HOURS) {
-      yield* Effect.fail(
-        new Error("End time must be after start time")
-      );
+      yield* Effect.fail(new Error("End time must be after start time"));
     }
 
     if (duration > MAX_DURATION_HOURS) {
@@ -52,9 +54,7 @@ export const validateDurationValue = (
 ): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     if (duration < MIN_DURATION_HOURS) {
-      yield* Effect.fail(
-        new Error("Duration cannot be negative")
-      );
+      yield* Effect.fail(new Error("Duration cannot be negative"));
     }
 
     if (duration > MAX_DURATION_HOURS) {
@@ -72,9 +72,7 @@ const PROJECT_NAME_PATTERN = /^[a-zA-Z0-9\s\-_]+$/;
  * @param name - Project name to validate
  * @returns Effect that succeeds if valid, or fails with error message
  */
-export const validateProjectName = (
-  name: string
-): Effect.Effect<void, Error> =>
+export const validateProjectName = (name: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     if (!name || typeof name !== "string") {
       yield* Effect.fail(new Error("Project name is required"));
@@ -87,15 +85,18 @@ export const validateProjectName = (
 
     if (trimmed.length > MAX_PROJECT_NAME_LENGTH) {
       yield* Effect.fail(
-        new Error(`Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or less`)
+        new Error(
+          `Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or less`
+        )
       );
     }
 
     // Prevent XSS - allow only safe characters
     if (!PROJECT_NAME_PATTERN.test(trimmed)) {
       yield* Effect.fail(
-        new Error("Project name contains invalid characters. Only letters, numbers, spaces, hyphens, and underscores are allowed.")
+        new Error(
+          "Project name contains invalid characters. Only letters, numbers, spaces, hyphens, and underscores are allowed."
+        )
       );
     }
   });
-

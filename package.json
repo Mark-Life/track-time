@@ -14,11 +14,12 @@
     "typescript": "^5"
   },
   "scripts": {
-    "dev": "bun run --bun src/index.ts",
     "build": "bun run --bun build.ts",
-    "start": "cd dist && NODE_ENV=production bun run --bun --env-file=../.env src/index.js",
     "check": "bunx run --bun ultracite check",
-    "fix": "bun run --bun ultracite fix"
+    "dev": "bun run --bun src/index.ts",
+    "fix": "bun run --bun ultracite fix",
+    "format": "bunx --bun biome format --write ./src",
+    "start": "cd dist && NODE_ENV=production bun run --bun --env-file=../.env src/index.js"
   },
   "dependencies": {
     "bun-plugin-tailwind": "latest",

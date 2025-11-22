@@ -2,16 +2,9 @@ import { Effect, Ref } from "effect";
 import { CacheKeys, invalidateCache, setCached } from "~/lib/cache.ts";
 import type { Project, Timer, WebSocketMessage } from "~/lib/types.ts";
 import { getEntries } from "./api.ts";
-import {
-  addEntryToList,
-  renderEntries,
-  renderEntryView,
-} from "./dom.ts";
+import { addEntryToList, renderEntries, renderEntryView } from "./dom.ts";
 import { startTimerUI, stopTimerUI } from "./timer-ui.ts";
-import {
-  populateProjectCombobox,
-  type AppRefs,
-} from "./project-management.ts";
+import { populateProjectCombobox, type AppRefs } from "./project-management.ts";
 
 /**
  * Creates WebSocket message handler
@@ -225,4 +218,3 @@ export const createWebSocket = (
 
   return ws;
 };
-

@@ -66,7 +66,7 @@ const checkTokenExpiration = (
 const handleRequest = async (req: Request, srv: Server): Promise<Response> => {
   const url = new URL(req.url);
   const pathname = url.pathname;
-  
+
   console.log("[handleRequest] Incoming request:", pathname, req.method);
 
   // HMR WebSocket upgrade (development only, no auth required)
