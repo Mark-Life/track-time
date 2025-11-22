@@ -116,11 +116,28 @@ const handleTildePath = async (pathname: string): Promise<Response | null> => {
   }
 
   // Serve the file directly for non-CSS or if bundling failed
+  const getContentType = (path: string): string => {
+    if (path.endsWith(".css")) {
+      return "text/css";
+    }
+    if (path.endsWith(".svg")) {
+      return "image/svg+xml";
+    }
+    if (path.endsWith(".json")) {
+      return "application/json";
+    }
+    if (path.endsWith(".js")) {
+      return "application/javascript";
+    }
+    if (path.endsWith(".ts")) {
+      return "application/javascript";
+    }
+    return "application/octet-stream";
+  };
+
   return new Response(file, {
     headers: {
-      "Content-Type": filePath.endsWith(".css")
-        ? "text/css"
-        : "application/javascript",
+      "Content-Type": getContentType(filePath),
     },
   });
 };
@@ -206,9 +223,46 @@ const handleTSJSFiles = async (pathname: string): Promise<Response | null> => {
   });
 };
 
+const handleRootStaticFiles = async (
+  pathname: string
+): Promise<Response | null> => {
+  // Handle root-level static files that browsers look for
+  if (pathname === "/manifest.json") {
+    const manifestPath = join(SRC_DIR, "assets", "manifest.json");
+    const file = Bun.file(manifestPath);
+    if (await file.exists()) {
+      return new Response(file, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    }
+  }
+
+  if (pathname === "/favicon.svg" || pathname === "/favicon.ico") {
+    const faviconPath = join(SRC_DIR, "assets", "favicon.svg");
+    const file = Bun.file(faviconPath);
+    if (await file.exists()) {
+      return new Response(file, {
+        headers: {
+          "Content-Type": "image/svg+xml",
+        },
+      });
+    }
+  }
+
+  return null;
+};
+
 export const handleAssets = async (
   pathname: string
 ): Promise<Response | null> => {
+  // Handle root-level static files first (manifest.json, favicon)
+  const rootStaticResponse = await handleRootStaticFiles(pathname);
+  if (rootStaticResponse) {
+    return rootStaticResponse;
+  }
+
   // Handle tailwindcss - use Bun's bundler to process it
   // Handle both /tailwindcss and /~/tailwindcss (for CSS imports)
   // Also handle relative paths from /login and /app routes

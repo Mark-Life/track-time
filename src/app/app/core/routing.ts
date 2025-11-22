@@ -42,9 +42,9 @@ export const showPage = (route: string) => {
   for (const link of navLinks) {
     const linkRoute = link.getAttribute("data-route");
     if (linkRoute === normalizedRoute) {
-      link.classList.add("font-bold", "text-primary");
+      link.classList.add("text-primary");
     } else {
-      link.classList.remove("font-bold", "text-primary");
+      link.classList.remove("text-primary");
     }
   }
 };

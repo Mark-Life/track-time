@@ -103,7 +103,7 @@ toggleRegister.addEventListener("click", () => {
     passwordInput.autocomplete = "current-password";
     const heading = document.querySelector("h1");
     if (heading) {
-      heading.textContent = "Time Tracker";
+      heading.textContent = "Log Time";
     }
     const subheading = document.querySelector("p");
     if (subheading) {

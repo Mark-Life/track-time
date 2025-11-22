@@ -1,0 +1,17 @@
+{
+  "name": "Log Time",
+  "short_name": "Log Time",
+  "description": "Track your time with Redis + WebSocket sync",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "~/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
