@@ -389,7 +389,10 @@ export const setupModalHandlers = (
     };
 
     // Process modal click actions
-    const processModalClick = (target: HTMLElement): void => {
+    const processModalClick = (
+      target: HTMLElement,
+      modal: HTMLElement
+    ): void => {
       const cancelBtn = target.closest(".calendar-cancel-edit-btn");
       if (cancelBtn) {
         handleCancelClick();
@@ -405,8 +408,8 @@ export const setupModalHandlers = (
         return;
       }
 
-      // Close modal when clicking outside
-      if (target.id === "calendar-entry-modal") {
+      // Close modal when clicking on the backdrop (the modal element itself, not its children)
+      if (target === modal) {
         handleCancelClick();
       }
     };
@@ -419,7 +422,7 @@ export const setupModalHandlers = (
         return;
       }
 
-      processModalClick(target);
+      processModalClick(target, modal);
     };
 
     // Handle Escape key to close modal

@@ -506,6 +506,21 @@ export const initializeProjectsPage = Effect.gen(function* () {
     Effect.runPromise(hideDeleteModal());
   });
 
+  // Handle backdrop click to close delete modal
+  const handleDeleteModalClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (deleteModal.classList.contains("hidden")) {
+      return;
+    }
+
+    // Close modal when clicking on the backdrop (the modal element itself, not its children)
+    if (target === deleteModal) {
+      Effect.runPromise(hideDeleteModal());
+    }
+  };
+
+  document.addEventListener("click", handleDeleteModalClick);
+
   // Handle Escape key to close delete modal
   const handleDeleteModalEscape = (event: KeyboardEvent) => {
     if (event.key !== "Escape") {
