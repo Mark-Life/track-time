@@ -451,6 +451,70 @@ const renderCalendarDay = (
   });
 
 /**
+ * Renders a visual selection indicator overlay
+ */
+const renderSelectionIndicator = (
+  startTime: Date,
+  endTime: Date,
+  container: HTMLElement
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    // Ensure startTime <= endTime (swap if needed)
+    const actualStart = startTime <= endTime ? startTime : endTime;
+    const actualEnd = startTime <= endTime ? endTime : startTime;
+
+    const startHour = getStartHourFromTimeline();
+    const hourHeight = getHourHeight();
+
+    // Calculate positions
+    const startDate = new Date(actualStart);
+    const endDate = new Date(actualEnd);
+    const startHourValue = startDate.getHours();
+    const startMinutes = startDate.getMinutes();
+    const endHourValue = endDate.getHours();
+    const endMinutes = endDate.getMinutes();
+
+    const top =
+      (startHourValue - startHour) * hourHeight +
+      (startMinutes * hourHeight) / 60;
+    const endTop =
+      (endHourValue - startHour) * hourHeight + (endMinutes * hourHeight) / 60;
+    const height = Math.max(endTop - top, 20); // Minimum 20px height
+
+    // Create or get selection indicator container
+    let indicatorContainer = container.querySelector(
+      ".calendar-selection-indicator"
+    ) as HTMLElement;
+    if (!indicatorContainer) {
+      indicatorContainer = document.createElement("div");
+      indicatorContainer.className =
+        "calendar-selection-indicator absolute inset-0 pointer-events-none z-10";
+      container.appendChild(indicatorContainer);
+    }
+
+    // Render selection indicator
+    indicatorContainer.innerHTML = `
+      <div
+        class="absolute left-0 right-0 border-2 border-primary bg-primary/10 rounded"
+        style="top: ${top}px; height: ${height}px; min-height: ${height}px;"
+      ></div>
+    `;
+  });
+
+/**
+ * Clears the selection indicator overlay
+ */
+const clearSelectionIndicator = (container: HTMLElement): Effect.Effect<void> =>
+  Effect.sync(() => {
+    const indicatorContainer = container.querySelector(
+      ".calendar-selection-indicator"
+    ) as HTMLElement;
+    if (indicatorContainer) {
+      indicatorContainer.innerHTML = "";
+    }
+  });
+
+/**
  * Parses hour from timeline marker text
  */
 const parseHourFromMarker = (hourText: string): number | null => {
@@ -492,14 +556,22 @@ const getStartHourFromTimeline = (): number => {
 };
 
 /**
- * Gets the time from a click position in the calendar
+ * Rounds a date to the nearest 5-minute interval
  */
-const getTimeFromClickPosition = (
-  event: MouseEvent,
-  container: HTMLElement
-): Date => {
+const roundToNearest5Minutes = (date: Date): Date => {
+  const rounded = new Date(date);
+  const minutes = rounded.getMinutes();
+  const roundedMinutes = Math.round(minutes / 5) * 5;
+  rounded.setMinutes(roundedMinutes, 0, 0);
+  return rounded;
+};
+
+/**
+ * Gets the time from a Y position in the calendar container
+ */
+const getTimeFromPosition = (y: number, container: HTMLElement): Date => {
   const rect = container.getBoundingClientRect();
-  const clickY = event.clientY - rect.top;
+  const relativeY = y - rect.top;
   const hourHeight = getHourHeight();
 
   // Get the current displayed date from the date display
@@ -518,9 +590,11 @@ const getTimeFromClickPosition = (
   const startHour = getStartHourFromTimeline();
 
   // Calculate clicked hour relative to start hour
-  const relativeHour = Math.floor(clickY / hourHeight);
+  const relativeHour = Math.floor(relativeY / hourHeight);
   const clickedHour = startHour + relativeHour;
-  const clickedMinutes = Math.floor(((clickY % hourHeight) / hourHeight) * 60);
+  const clickedMinutes = Math.floor(
+    ((relativeY % hourHeight) / hourHeight) * 60
+  );
 
   const clickedTime = new Date(displayedDate);
   clickedTime.setHours(clickedHour, clickedMinutes, 0, 0);
@@ -956,12 +1030,32 @@ const handleEntryBlockClick = (
  * Handles empty time slot click (create new entry)
  */
 const handleEmptySlotClick = (
-  event: MouseEvent,
-  projectsRef: Ref.Ref<Project[]>
+  projectsRef: Ref.Ref<Project[]>,
+  startTime?: Date,
+  endTime?: Date
 ): void => {
-  const clickedTime = getTimeFromClickPosition(event, calendarEntriesContainer);
-  const endTime = new Date(clickedTime);
-  endTime.setHours(endTime.getHours() + 1); // Default 1 hour duration
+  const defaultStartTime = startTime ?? new Date();
+  const defaultEndTime =
+    endTime ??
+    (() => {
+      const end = new Date(defaultStartTime);
+      end.setHours(end.getHours() + 1); // Default 1 hour duration
+      return end;
+    })();
+
+  // Round times to 5-minute intervals
+  const roundedStartTime = roundToNearest5Minutes(defaultStartTime);
+  const roundedEndTime = roundToNearest5Minutes(defaultEndTime);
+
+  // Ensure start <= end (swap if needed)
+  const actualStart =
+    roundedStartTime <= roundedEndTime ? roundedStartTime : roundedEndTime;
+  const actualEnd =
+    roundedStartTime <= roundedEndTime ? roundedEndTime : roundedStartTime;
+
+  // Calculate duration in hours
+  const duration =
+    (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60);
 
   Effect.runPromise(
     Effect.catchAll(
@@ -970,9 +1064,9 @@ const handleEmptySlotClick = (
         // Create a temporary entry for editing
         const tempEntry: Entry = {
           id: "temp-new",
-          startedAt: clickedTime.toISOString(),
-          endedAt: endTime.toISOString(),
-          duration: 1,
+          startedAt: actualStart.toISOString(),
+          endedAt: actualEnd.toISOString(),
+          duration,
         };
         yield* renderEntryEditFormInModal(tempEntry, projects);
       }),
@@ -982,46 +1076,227 @@ const handleEmptySlotClick = (
 };
 
 /**
- * Routes calendar click events to appropriate handlers
+ * Checks if drag should start based on the target element
  */
-const routeCalendarClick = (
-  event: MouseEvent,
+const shouldStartDrag = (target: HTMLElement): boolean => {
+  // Don't start drag on entry blocks
+  if (target.closest("[data-entry-id]")) {
+    return false;
+  }
+
+  // Don't start drag on buttons or interactive elements
+  if (
+    target.closest("button") ||
+    target.closest("input") ||
+    target.closest("form")
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Handles click/tap on entry block
+ */
+const handleEntryClick = (
+  target: HTMLElement,
   entriesRef: Ref.Ref<Entry[]>,
   projectsRef: Ref.Ref<Project[]>
 ): void => {
-  const target = event.target as HTMLElement;
-
-  // Click on entry block itself (edit)
   const entryBlock = target.closest("[data-entry-id]");
   if (entryBlock) {
     const entryId = entryBlock.getAttribute("data-entry-id");
     if (entryId) {
       handleEntryBlockClick(entryId, entriesRef, projectsRef);
     }
-    return;
-  }
-
-  // Click on empty time slot (create new entry)
-  if (
-    target === calendarEntriesContainer ||
-    (target.closest("#calendar-entries-container") &&
-      !target.closest("[data-entry-id]"))
-  ) {
-    handleEmptySlotClick(event, projectsRef);
   }
 };
 
 /**
- * Sets up click handlers for the calendar
+ * Sets up drag and click handlers for the calendar
  */
 const setupCalendarClickHandlers = (
   entriesRef: Ref.Ref<Entry[]>,
   projectsRef: Ref.Ref<Project[]>
 ): Effect.Effect<void> =>
-  Effect.sync(() => {
-    calendarEntriesContainer.addEventListener("click", (event: MouseEvent) => {
-      routeCalendarClick(event, entriesRef, projectsRef);
+  Effect.gen(function* () {
+    // Create drag state refs
+    const isDraggingRef = yield* Ref.make(false);
+    const dragStartTimeRef = yield* Ref.make<Date | null>(null);
+    const dragStartYRef = yield* Ref.make<number | null>(null);
+    const dragThreshold = 5; // pixels
+
+    const handleDragStart = (clientY: number): void => {
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const startTime = getTimeFromPosition(
+            clientY,
+            calendarEntriesContainer
+          );
+          yield* Ref.set(isDraggingRef, true);
+          yield* Ref.set(dragStartTimeRef, startTime);
+          yield* Ref.set(dragStartYRef, clientY);
+        })
+      );
+    };
+
+    const handleDragMove = (clientY: number): void => {
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const isDragging = yield* Ref.get(isDraggingRef);
+          if (!isDragging) {
+            return;
+          }
+
+          const startTime = yield* Ref.get(dragStartTimeRef);
+          if (!startTime) {
+            return;
+          }
+
+          const endTime = getTimeFromPosition(
+            clientY,
+            calendarEntriesContainer
+          );
+          yield* renderSelectionIndicator(
+            startTime,
+            endTime,
+            calendarEntriesContainer
+          );
+        })
+      );
+    };
+
+    const handleDragEnd = (clientY: number): void => {
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const isDragging = yield* Ref.get(isDraggingRef);
+          if (!isDragging) {
+            return;
+          }
+
+          const startY = yield* Ref.get(dragStartYRef);
+          const startTime = yield* Ref.get(dragStartTimeRef);
+
+          // Clear drag state
+          yield* Ref.set(isDraggingRef, false);
+          yield* Ref.set(dragStartTimeRef, null);
+          yield* Ref.set(dragStartYRef, null);
+
+          // Clear selection indicator
+          yield* clearSelectionIndicator(calendarEntriesContainer);
+
+          if (!startTime || startY === null) {
+            return;
+          }
+
+          // Check if this was a drag (movement > threshold) or a click
+          const dragDistance = Math.abs(clientY - startY);
+          if (dragDistance < dragThreshold) {
+            return;
+          }
+
+          // It was a drag - create entry with selected range
+          const endTime = getTimeFromPosition(
+            clientY,
+            calendarEntriesContainer
+          );
+          handleEmptySlotClick(projectsRef, startTime, endTime);
+        })
+      );
+    };
+
+    // Mouse events
+    const handleMouseDown = (event: MouseEvent): void => {
+      const target = event.target as HTMLElement;
+      if (!shouldStartDrag(target)) {
+        return;
+      }
+      event.preventDefault();
+      handleDragStart(event.clientY);
+    };
+
+    const handleMouseMove = (event: MouseEvent): void => {
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const isDragging = yield* Ref.get(isDraggingRef);
+          if (isDragging) {
+            event.preventDefault();
+            handleDragMove(event.clientY);
+          }
+        })
+      );
+    };
+
+    const handleMouseUp = (event: MouseEvent): void => {
+      const target = event.target as HTMLElement;
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const isDragging = yield* Ref.get(isDraggingRef);
+          if (!isDragging) {
+            handleEntryClick(target, entriesRef, projectsRef);
+            return;
+          }
+          handleDragEnd(event.clientY);
+        })
+      );
+    };
+
+    // Touch events
+    const handleTouchStart = (event: TouchEvent): void => {
+      const target = event.target as HTMLElement;
+      if (!shouldStartDrag(target)) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (touch) {
+        event.preventDefault();
+        handleDragStart(touch.clientY);
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent): void => {
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const isDragging = yield* Ref.get(isDraggingRef);
+          if (isDragging) {
+            event.preventDefault();
+            const touch = event.touches[0];
+            if (touch) {
+              handleDragMove(touch.clientY);
+            }
+          }
+        })
+      );
+    };
+
+    const handleTouchEnd = (event: TouchEvent): void => {
+      const target = event.target as HTMLElement;
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const isDragging = yield* Ref.get(isDraggingRef);
+          if (!isDragging) {
+            handleEntryClick(target, entriesRef, projectsRef);
+            return;
+          }
+          const touch = event.changedTouches[0];
+          if (touch) {
+            handleDragEnd(touch.clientY);
+          }
+        })
+      );
+    };
+
+    // Add event listeners
+    calendarEntriesContainer.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    calendarEntriesContainer.addEventListener("touchstart", handleTouchStart, {
+      passive: false,
     });
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+    document.addEventListener("touchend", handleTouchEnd);
   });
 
 /**
