@@ -107,7 +107,16 @@ const showDeleteModal = (project: Project) =>
     }
     Effect.runSync(Ref.set(deleteProjectIdRef, project.id));
     deleteModalProjectName.textContent = project.name;
+    deleteModal.setAttribute("role", "dialog");
+    deleteModal.setAttribute("aria-modal", "true");
+    deleteModal.setAttribute("aria-labelledby", "delete-modal-title");
     deleteModal.classList.remove("hidden");
+    
+    // Focus first button when modal opens
+    const firstButton = deleteEntriesBtn;
+    if (firstButton) {
+      firstButton.focus();
+    }
   });
 
 const hideDeleteModal = () =>
@@ -117,6 +126,9 @@ const hideDeleteModal = () =>
     }
     Effect.runSync(Ref.set(deleteProjectIdRef, null));
     deleteModal.classList.add("hidden");
+    deleteModal.removeAttribute("role");
+    deleteModal.removeAttribute("aria-modal");
+    deleteModal.removeAttribute("aria-labelledby");
   });
 
 const showEditForm = (projectId: string) =>
@@ -493,4 +505,20 @@ export const initializeProjectsPage = Effect.gen(function* () {
   cancelDeleteBtn.addEventListener("click", () => {
     Effect.runPromise(hideDeleteModal());
   });
+
+  // Handle Escape key to close delete modal
+  const handleDeleteModalEscape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (deleteModal.classList.contains("hidden")) {
+      return;
+    }
+
+    event.preventDefault();
+    Effect.runPromise(hideDeleteModal());
+  };
+
+  document.addEventListener("keydown", handleDeleteModalEscape);
 });

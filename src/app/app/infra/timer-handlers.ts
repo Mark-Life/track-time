@@ -58,36 +58,77 @@ const handleStartTimer = (refs: AppRefs) =>
   });
 
 /**
- * Sets up play/pause button handler
+ * Toggles timer (play/pause)
+ */
+const toggleTimer = (refs: AppRefs) => {
+  Effect.runPromise(
+    Effect.catchAll(
+      Effect.gen(function* () {
+        yield* showTimerButtonLoading();
+        const timer = yield* Ref.get(refs.timerRef);
+        if (timer) {
+          yield* handleStopTimer(refs);
+        } else {
+          yield* handleStartTimer(refs);
+        }
+      }),
+      (error) =>
+        Effect.gen(function* () {
+          yield* Effect.logError(`Failed to toggle timer: ${error}`);
+          // Restore button state on error
+          const timer = yield* Ref.get(refs.timerRef);
+          if (timer) {
+            yield* showPauseButton();
+          } else {
+            yield* showPlayButton();
+          }
+        })
+    )
+  );
+};
+
+/**
+ * Sets up play/pause button handler and keyboard shortcuts
  */
 export const setupTimerButtonHandler = (
   playPauseBtn: HTMLButtonElement,
   refs: AppRefs
 ) => {
+  // Click handler
   playPauseBtn.addEventListener("click", () => {
-    Effect.runPromise(
-      Effect.catchAll(
-        Effect.gen(function* () {
-          yield* showTimerButtonLoading();
-          const timer = yield* Ref.get(refs.timerRef);
-          if (timer) {
-            yield* handleStopTimer(refs);
-          } else {
-            yield* handleStartTimer(refs);
-          }
-        }),
-        (error) =>
-          Effect.gen(function* () {
-            yield* Effect.logError(`Failed to toggle timer: ${error}`);
-            // Restore button state on error
-            const timer = yield* Ref.get(refs.timerRef);
-            if (timer) {
-              yield* showPauseButton();
-            } else {
-              yield* showPlayButton();
-            }
-          })
-      )
-    );
+    toggleTimer(refs);
   });
+
+  // Space key handler for play/pause (only when not in input/textarea)
+  const handleSpaceKey = (event: KeyboardEvent) => {
+    if (event.key !== " " || event.repeat) {
+      return;
+    }
+
+    // Don't trigger if user is typing in an input or textarea
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.isContentEditable)
+    ) {
+      return;
+    }
+
+    // Don't trigger if a modal is open
+    const calendarModal = document.getElementById("calendar-entry-modal");
+    const deleteModal = document.getElementById("delete-modal");
+    if (
+      (calendarModal && !calendarModal.classList.contains("hidden")) ||
+      (deleteModal && !deleteModal.classList.contains("hidden"))
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    toggleTimer(refs);
+  };
+
+  document.addEventListener("keydown", handleSpaceKey);
 };

@@ -23,7 +23,7 @@ import {
   setupCleanupListeners,
   setWebSocketInstance,
 } from "./core/app-state.ts";
-import { initializeRouting, normalizeRoute } from "./core/routing.ts";
+import { initializeRouting } from "./core/routing.ts";
 import {
   initializeProjectCombobox,
   populateProjectCombobox,

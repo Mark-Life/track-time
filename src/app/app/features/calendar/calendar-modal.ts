@@ -51,31 +51,36 @@ export const renderEntryEditFormInModal = (
 
     const isNew = entry.id === "temp-new";
 
+    const modalTitleId = `calendar-entry-modal-title-${entry.id}`;
     modalContent.innerHTML = `
-      <h3 class="text-lg font-bold mb-6">${isNew ? "Create Entry" : "Edit Entry"}</h3>
+      <h3 id="${modalTitleId}" class="text-lg font-bold mb-6">${isNew ? "Create Entry" : "Edit Entry"}</h3>
       <form class="calendar-edit-entry-form space-y-4" data-entry-id="${entry.id}">
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-medium">Start Time</label>
+          <label for="calendar-entry-${entry.id}-start-time" class="text-sm font-medium">Start Time</label>
           <input
+            id="calendar-entry-${entry.id}-start-time"
             type="datetime-local"
             name="startedAt"
             value="${isoToDatetimeLocal(entry.startedAt)}"
             required
             class="px-3 py-2 border border-border rounded bg-background text-foreground"
+            aria-label="Start time for time entry"
           />
         </div>
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-medium">End Time</label>
+          <label for="calendar-entry-${entry.id}-end-time" class="text-sm font-medium">End Time</label>
           <input
+            id="calendar-entry-${entry.id}-end-time"
             type="datetime-local"
             name="endedAt"
             value="${isoToDatetimeLocal(entry.endedAt)}"
             required
             class="px-3 py-2 border border-border rounded bg-background text-foreground"
+            aria-label="End time for time entry"
           />
         </div>
         <div class="flex flex-col gap-2 mb-4 relative">
-          <label class="text-sm font-medium">Project</label>
+          <label for="${comboboxInputId}" class="text-sm font-medium">Project</label>
           <div
             id="${comboboxId}"
             class="combobox-container relative z-50"
@@ -127,6 +132,7 @@ export const renderEntryEditFormInModal = (
               type="button"
               class="calendar-modal-delete-btn px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/80 cursor-pointer"
               data-entry-id="${entry.id}"
+              aria-label="Delete time entry"
             >
               Delete
             </button>
@@ -138,6 +144,7 @@ export const renderEntryEditFormInModal = (
               type="button"
               class="calendar-cancel-edit-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
               data-entry-id="${entry.id}"
+              aria-label="Cancel editing entry"
             >
               Cancel
             </button>
@@ -145,6 +152,7 @@ export const renderEntryEditFormInModal = (
               type="submit"
               class="calendar-save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
               data-entry-id="${entry.id}"
+              aria-label="${isNew ? "Create time entry" : "Save changes to time entry"}"
             >
               ${isNew ? "Create" : "Save"}
             </button>
@@ -153,7 +161,18 @@ export const renderEntryEditFormInModal = (
       </form>
     `;
 
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", modalTitleId);
     modal.classList.remove("hidden");
+
+    // Focus first input when modal opens
+    const firstInput = modalContent.querySelector<HTMLInputElement>(
+      'input[type="datetime-local"]'
+    );
+    if (firstInput) {
+      firstInput.focus();
+    }
 
     // Initialize combobox
     const projectOptions: ComboboxOption[] = [
@@ -190,6 +209,9 @@ export const closeCalendarModal = (): Effect.Effect<void> =>
     const modal = document.getElementById("calendar-entry-modal");
     if (modal) {
       modal.classList.add("hidden");
+      modal.removeAttribute("role");
+      modal.removeAttribute("aria-modal");
+      modal.removeAttribute("aria-labelledby");
     }
   });
 
@@ -305,7 +327,7 @@ const handleModalDelete = (params: {
   );
 
 /**
- * Sets up modal handlers (form submission, cancel, click outside)
+ * Sets up modal handlers (form submission, cancel, click outside, Escape key)
  */
 export const setupModalHandlers = (
   entriesRef: Ref.Ref<Entry[]>,
@@ -400,7 +422,23 @@ export const setupModalHandlers = (
       processModalClick(target);
     };
 
+    // Handle Escape key to close modal
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      const modal = document.getElementById("calendar-entry-modal");
+      if (!modal || modal.classList.contains("hidden")) {
+        return;
+      }
+
+      event.preventDefault();
+      handleCancelClick();
+    };
+
     // Set up event listeners (only once)
     document.addEventListener("submit", handleFormSubmit);
     document.addEventListener("click", handleModalClick);
+    document.addEventListener("keydown", handleEscapeKey);
   });

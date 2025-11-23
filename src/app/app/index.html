@@ -160,7 +160,14 @@
       <div
         class="border-2 border-border rounded-lg p-4 mb-8 mx-auto flex flex-col items-center"
       >
-        <div id="timer-display" class="text-2xl font-mono mb-4 text-primary">
+        <div
+          id="timer-display"
+          class="text-2xl font-mono mb-4 text-primary"
+          aria-live="polite"
+          aria-atomic="true"
+          role="timer"
+          aria-label="Timer display"
+        >
           00:00:00
         </div>
         <button
@@ -370,6 +377,7 @@
             <button
               id="calendar-today-btn"
               class="px-3 py-1 border border-border rounded hover:bg-muted transition cursor-pointer"
+              aria-label="Go to today"
             >
               Today
             </button>
@@ -405,7 +413,9 @@
         class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       >
         <div class="bg-background p-6 rounded-lg max-w-md w-full mx-4">
-          <h3 class="text-lg font-bold mb-4">Delete Project</h3>
+          <h3 id="delete-modal-title" class="text-lg font-bold mb-4">
+            Delete Project
+          </h3>
           <p class="mb-4">
             What would you like to do with time entries for project "<span
               id="delete-modal-project-name"
@@ -416,18 +426,21 @@
             <button
               id="delete-entries-btn"
               class="px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/80 cursor-pointer"
+              aria-label="Delete project and all related entries"
             >
               Delete all related entries
             </button>
             <button
               id="keep-entries-btn"
               class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
+              aria-label="Keep entries and remove project"
             >
               Keep entries, remove project
             </button>
             <button
               id="cancel-delete-btn"
               class="px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
+              aria-label="Cancel delete project"
             >
               Cancel
             </button>

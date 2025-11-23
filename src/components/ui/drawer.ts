@@ -54,4 +54,21 @@ export const initializeDrawer = (): Effect.Effect<void> =>
         Effect.runPromise(closeDrawer());
       });
     }
+
+    // Handle Escape key to close drawer
+    const handleDrawerEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      const drawer = document.getElementById("mobile-drawer");
+      if (!drawer || drawer.classList.contains("translate-x-[-100%]")) {
+        return;
+      }
+
+      event.preventDefault();
+      Effect.runPromise(closeDrawer());
+    };
+
+    document.addEventListener("keydown", handleDrawerEscape);
   });

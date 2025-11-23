@@ -240,6 +240,7 @@ const entryHTML = (
               type="button"
               class="cancel-edit-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
               data-entry-id="${entry.id}"
+              aria-label="Cancel editing entry"
             >
               Cancel
             </button>
@@ -247,6 +248,7 @@ const entryHTML = (
               type="submit"
               class="save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
               data-entry-id="${entry.id}"
+              aria-label="Save changes to entry"
             >
               Save
             </button>
