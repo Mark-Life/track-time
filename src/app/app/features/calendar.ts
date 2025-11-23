@@ -4,9 +4,13 @@ import { getEntries, getProjects } from "../api.ts";
 import { setupCalendarClickHandlers } from "./calendar/calendar-interactions.ts";
 import { setupModalHandlers } from "./calendar/calendar-modal.ts";
 import { initializeDayNavigation } from "./calendar/calendar-navigation.ts";
-import { renderCalendarDay } from "./calendar/calendar-rendering.ts";
+import {
+  renderCalendarDay,
+  updateCurrentTimeIndicatorPosition,
+} from "./calendar/calendar-rendering.ts";
 import {
   getCurrentDisplayedDate,
+  parseHourFromMarker,
   setCurrentDisplayedDate,
 } from "./calendar/calendar-utils.ts";
 
@@ -91,4 +95,60 @@ export const initializeCalendarPage = Effect.gen(function* () {
   ws.onclose = () => {
     Effect.runPromise(Effect.log("WebSocket disconnected (calendar page)"));
   };
+
+  // Setup current time indicator updater (non-blocking, lightweight)
+  /**
+   * Gets time range from rendered timeline (lightweight, reads from DOM)
+   */
+  const getTimeRangeFromTimeline = (): {
+    startHour: number;
+    endHour: number;
+  } | null => {
+    const timeline = document.getElementById("calendar-timeline");
+    if (!timeline) {
+      return null;
+    }
+
+    const firstHourMarker = timeline.querySelector("div");
+    if (!firstHourMarker) {
+      return null;
+    }
+
+    const hourText = firstHourMarker.textContent?.trim();
+    if (!hourText) {
+      return null;
+    }
+
+    const startHour = parseHourFromMarker(hourText);
+    if (startHour === null) {
+      return null;
+    }
+
+    // Count hour markers to get end hour
+    const hourMarkers = timeline.querySelectorAll("div");
+    const endHour = startHour + hourMarkers.length - 1;
+
+    return { startHour, endHour };
+  };
+
+  /**
+   * Updates the current time indicator position (lightweight, synchronous, non-blocking)
+   */
+  const updateCurrentTimeIndicator = () => {
+    // Read time range from already-rendered DOM (very fast, no entry processing)
+    const timeRange = getTimeRangeFromTimeline();
+    if (timeRange) {
+      // Lightweight update - just change position, no DOM recreation
+      updateCurrentTimeIndicatorPosition(
+        timeRange.startHour,
+        timeRange.endHour
+      );
+    }
+
+    // Schedule next update in 1 second (non-blocking)
+    setTimeout(updateCurrentTimeIndicator, 1000);
+  };
+
+  // Start the updater
+  updateCurrentTimeIndicator();
 });

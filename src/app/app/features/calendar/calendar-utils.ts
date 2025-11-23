@@ -137,3 +137,44 @@ export const setCurrentDisplayedDate = (date: Date): void => {
     dateDisplay.setAttribute("data-date", date.toISOString());
   }
 };
+
+/**
+ * Checks if the currently displayed date is today
+ */
+export const isViewingToday = (): boolean => {
+  const displayedDate = getCurrentDisplayedDate();
+  const today = new Date();
+
+  return (
+    displayedDate.getFullYear() === today.getFullYear() &&
+    displayedDate.getMonth() === today.getMonth() &&
+    displayedDate.getDate() === today.getDate()
+  );
+};
+
+/**
+ * Calculates the pixel position for the current time
+ * Returns null if current time is outside the visible range
+ */
+export const calculateCurrentTimePosition = (
+  startHour: number,
+  endHour: number
+): number | null => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinutes = now.getMinutes();
+  const currentSeconds = now.getSeconds();
+
+  // Check if current time is within visible range
+  if (currentHour < startHour || currentHour > endHour) {
+    return null;
+  }
+
+  const hourHeight = getHourHeight();
+  const top =
+    (currentHour - startHour) * hourHeight +
+    (currentMinutes * hourHeight) / 60 +
+    (currentSeconds * hourHeight) / 3600;
+
+  return top;
+};

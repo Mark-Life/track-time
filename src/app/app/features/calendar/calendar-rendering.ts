@@ -5,7 +5,12 @@ import {
   timelineContainer,
 } from "../../ui/dom-elements.ts";
 import { HOUR_HEIGHT } from "./calendar-constants.ts";
-import { formatTime, getHourHeight } from "./calendar-utils.ts";
+import {
+  calculateCurrentTimePosition,
+  formatTime,
+  getHourHeight,
+  isViewingToday,
+} from "./calendar-utils.ts";
 
 /**
  * Calculates the position (top and height) for an entry block
@@ -223,6 +228,79 @@ import { processEntriesForDay } from "./calendar-entry-processing.ts";
 import { determineTimeRange } from "./calendar-time-range.ts";
 
 /**
+ * Updates the current time indicator position (lightweight, non-blocking)
+ * Only updates position if indicator exists and we're viewing today
+ */
+export const updateCurrentTimeIndicatorPosition = (
+  startHour: number,
+  endHour: number
+): void => {
+  const parentContainer = calendarEntriesContainer.parentElement;
+  if (!parentContainer) {
+    return;
+  }
+
+  const indicator = parentContainer.querySelector(
+    ".current-time-indicator"
+  ) as HTMLElement | null;
+
+  // Only show if viewing today
+  if (!isViewingToday()) {
+    if (indicator) {
+      indicator.remove();
+    }
+    return;
+  }
+
+  const position = calculateCurrentTimePosition(startHour, endHour);
+  if (position === null) {
+    if (indicator) {
+      indicator.remove();
+    }
+    return;
+  }
+
+  // Update existing indicator position (fast path)
+  if (indicator) {
+    indicator.style.top = `${position}px`;
+    return;
+  }
+
+  // Create indicator only if it doesn't exist (slow path, only on first render)
+  const newIndicator = document.createElement("div");
+  newIndicator.className =
+    "current-time-indicator absolute left-0 right-0 pointer-events-none z-10";
+  newIndicator.style.top = `${position}px`;
+  newIndicator.style.transform = "translateY(-50%)";
+
+  // Red line spanning the full width
+  const line = document.createElement("div");
+  line.className = "h-0.5 bg-destructive";
+  newIndicator.appendChild(line);
+
+  // Red dot on the left (timeline side)
+  const dot = document.createElement("div");
+  dot.className =
+    "absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-destructive";
+  dot.style.width = "8px";
+  dot.style.height = "8px";
+  newIndicator.appendChild(dot);
+
+  parentContainer.appendChild(newIndicator);
+};
+
+/**
+ * Renders or updates the current time indicator (red line)
+ */
+export const renderCurrentTimeIndicator = (
+  startHour: number,
+  endHour: number
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    updateCurrentTimeIndicatorPosition(startHour, endHour);
+  });
+
+/**
  * Renders the calendar day view
  */
 export const renderCalendarDay = (
@@ -250,4 +328,5 @@ export const renderCalendarDay = (
       calendarEntriesContainer,
       startHour
     );
+    yield* renderCurrentTimeIndicator(startHour, endHour);
   });

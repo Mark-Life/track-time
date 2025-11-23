@@ -21,7 +21,7 @@ export const initializeDayNavigation = (
     prevDayBtn.addEventListener("click", () => {
       const current = getCurrentDisplayedDate();
       const prevDay = new Date(current);
-      prevDay.setDate(prevDay.getDate() - 1);
+      prevDay.setDate(prevDay.getDate() - 1); // Switch by 1 day
       setCurrentDisplayedDate(prevDay);
       Effect.runPromise(
         Effect.catchAll(
@@ -39,7 +39,7 @@ export const initializeDayNavigation = (
     nextDayBtn.addEventListener("click", () => {
       const current = getCurrentDisplayedDate();
       const nextDay = new Date(current);
-      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setDate(nextDay.getDate() + 1); // Switch by 1 day
       setCurrentDisplayedDate(nextDay);
       Effect.runPromise(
         Effect.catchAll(
