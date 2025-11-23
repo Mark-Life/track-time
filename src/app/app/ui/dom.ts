@@ -158,12 +158,18 @@ const formatTime = (date: Date, durationHours: number, prefix = ""): string => {
   return prefix ? `${prefix}, ${timeStr}` : timeStr;
 };
 
+type EntryHTMLOptions = {
+  isEditing?: boolean;
+  boundaries?: DateBoundaries;
+  isSynced?: boolean;
+};
+
 const entryHTML = (
   entry: Entry,
   projects: Project[] | undefined,
-  isEditing = false,
-  boundaries?: DateBoundaries
+  options: EntryHTMLOptions = {}
 ): string => {
+  const { isEditing = false, boundaries, isSynced = true } = options;
   const projectName =
     entry.projectId && projects
       ? projects.find((p) => p.id === entry.projectId)?.name
@@ -263,11 +269,16 @@ const entryHTML = (
     `;
   }
 
+  const projectColorClass = isSynced ? "text-primary" : "text-muted-foreground";
+  const buttonBgClass = isSynced
+    ? "bg-primary hover:bg-primary/80"
+    : "bg-muted-foreground hover:bg-muted-foreground/80";
+
   return `
     <div class="group p-4 border border-border rounded-lg relative" data-entry-id="${entry.id}">
       <div class="flex justify-between items-center">
         <div>
-          ${projectName ? `<div class="text-sm font-semibold text-primary mb-1">${projectName}</div>` : ""}
+          ${projectName ? `<div class="text-sm font-semibold ${projectColorClass} mb-1">${projectName}</div>` : ""}
           <div class="text-sm text-gray-500">Started: ${formatEntryTime(entry.startedAt, entry.duration, boundaries)}</div>
           <div class="text-sm text-gray-500">Ended: ${formatEntryTime(entry.endedAt, entry.duration, boundaries)}</div>
         </div>
@@ -275,7 +286,7 @@ const entryHTML = (
           <div class="text-md font-bold">${entry.duration.toFixed(2)}h</div>
           <div class="flex items-center gap-2">
             <button
-              class="edit-entry-btn text-white bg-primary p-2 rounded-full hover:bg-primary/80 cursor-pointer flex items-center justify-center"
+              class="edit-entry-btn text-white ${buttonBgClass} p-2 rounded-full cursor-pointer flex items-center justify-center"
               data-entry-id="${entry.id}"
               aria-label="Edit entry"
             >
@@ -301,6 +312,22 @@ const entryHTML = (
 export const showEntriesLoading = () =>
   showSkeleton("entries-list", { variant: "entry", count: 3 });
 
+/**
+ * Gets synced entry IDs from cache
+ */
+const getSyncedEntryIds = (): Set<string> => {
+  try {
+    const cached = localStorage.getItem("log-time-cache:entries");
+    if (!cached) {
+      return new Set();
+    }
+    const entry = JSON.parse(cached) as { data: Entry[]; timestamp: number };
+    return new Set(entry.data.map((e) => e.id));
+  } catch {
+    return new Set();
+  }
+};
+
 export const renderEntries = (
   entries: Entry[],
   projects: Project[] | undefined = []
@@ -312,9 +339,16 @@ export const renderEntries = (
       return;
     }
 
+    const syncedIds = getSyncedEntryIds();
     const boundaries = getDateBoundaries();
     entriesList.innerHTML = entries
-      .map((entry) => entryHTML(entry, projects, false, boundaries))
+      .map((entry) =>
+        entryHTML(entry, projects, {
+          isEditing: false,
+          boundaries,
+          isSynced: syncedIds.has(entry.id),
+        })
+      )
       .join("");
   });
 
@@ -327,7 +361,7 @@ export const renderEntryEditForm = (
       `[data-entry-id="${entry.id}"]`
     ) as HTMLElement;
     if (entryElement) {
-      entryElement.outerHTML = entryHTML(entry, projects, true);
+      entryElement.outerHTML = entryHTML(entry, projects, { isEditing: true });
     }
 
     // Initialize combobox for this entry
@@ -369,8 +403,13 @@ export const renderEntryView = (
       `[data-entry-id="${entry.id}"]`
     ) as HTMLElement;
     if (entryElement) {
+      const syncedIds = getSyncedEntryIds();
       const boundaries = getDateBoundaries();
-      entryElement.outerHTML = entryHTML(entry, projects, false, boundaries);
+      entryElement.outerHTML = entryHTML(entry, projects, {
+        isEditing: false,
+        boundaries,
+        isSynced: syncedIds.has(entry.id),
+      });
     }
   });
 
@@ -379,9 +418,14 @@ export const addEntryToList = (
   projects: Project[] | undefined = []
 ) =>
   Effect.sync(() => {
+    const syncedIds = getSyncedEntryIds();
     const boundaries = getDateBoundaries();
     const entryElement = document.createElement("div");
-    entryElement.innerHTML = entryHTML(entry, projects, false, boundaries);
+    entryElement.innerHTML = entryHTML(entry, projects, {
+      isEditing: false,
+      boundaries,
+      isSynced: syncedIds.has(entry.id),
+    });
     entriesList.insertBefore(
       entryElement.firstElementChild as HTMLElement,
       entriesList.firstChild

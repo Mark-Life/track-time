@@ -38,12 +38,29 @@ const calculateEntryPosition = (
 };
 
 /**
+ * Gets synced entry IDs from cache
+ */
+const getSyncedEntryIds = (): Set<string> => {
+  try {
+    const cached = localStorage.getItem("log-time-cache:entries");
+    if (!cached) {
+      return new Set();
+    }
+    const entry = JSON.parse(cached) as { data: Entry[]; timestamp: number };
+    return new Set(entry.data.map((e) => e.id));
+  } catch {
+    return new Set();
+  }
+};
+
+/**
  * Generates HTML for an entry block
  */
 const renderEntryBlock = (
   entry: Entry,
   projects: Project[] | undefined,
-  position: { top: number; height: number }
+  position: { top: number; height: number },
+  isSynced = true
 ): string => {
   const projectName =
     entry.projectId && projects
@@ -58,21 +75,26 @@ const renderEntryBlock = (
   const SMALL_THRESHOLD = 40; // Below this, use single line
   const VERY_SMALL_THRESHOLD = 25; // Below this, show only project name
 
+  const projectColorClass = isSynced ? "text-primary" : "text-muted-foreground";
+  const bgClass = isSynced
+    ? "bg-primary/20 hover:bg-primary/20"
+    : "bg-muted-foreground/20 hover:bg-muted-foreground/20";
+
   let content: string;
   let containerClass: string;
 
   if (height < VERY_SMALL_THRESHOLD) {
     // Very small: only project name, smaller font, vertically centered
-    content = `<div class="text-[10px] font-semibold text-primary truncate">${projectName || "No project"}</div>`;
+    content = `<div class="text-[10px] font-semibold ${projectColorClass} truncate">${projectName || "No project"}</div>`;
     containerClass = "flex items-center px-1";
   } else if (height < SMALL_THRESHOLD) {
     // Small: project name and time in one line, vertically centered
-    content = `<div class="text-xs font-semibold text-primary truncate">${projectName || "No project"} <span class="text-[10px] text-muted-foreground font-normal">${timeRange}</span></div>`;
+    content = `<div class="text-xs font-semibold ${projectColorClass} truncate">${projectName || "No project"} <span class="text-[10px] text-muted-foreground font-normal">${timeRange}</span></div>`;
     containerClass = "flex items-center px-1.5";
   } else {
     // Normal: two lines with full info
     content = `
-      <div class="text-xs font-semibold text-primary mb-1">${projectName || "No project"}</div>
+      <div class="text-xs font-semibold ${projectColorClass} mb-1">${projectName || "No project"}</div>
       <div class="text-xs text-muted-foreground">${timeRange}</div>
     `;
     containerClass = "p-2";
@@ -80,7 +102,7 @@ const renderEntryBlock = (
 
   return `
     <div
-      class="absolute left-0 right-0 ${containerClass} border border-border rounded bg-primary/20 hover:bg-primary/20 transition cursor-pointer overflow-hidden"
+      class="absolute left-0 right-0 ${containerClass} border border-border rounded ${bgClass} transition cursor-pointer overflow-hidden"
       style="top: ${position.top}px; height: ${position.height}px; min-height: ${position.height}px;"
       data-entry-id="${entry.id}"
     >
@@ -211,9 +233,16 @@ const renderEntryBlocks = (
 
     entriesContainer.innerHTML = "";
 
+    const syncedIds = getSyncedEntryIds();
+
     for (const entry of entries) {
       const position = calculateEntryPosition(entry, hourHeight, startHour);
-      const blockHTML = renderEntryBlock(entry, projects, position);
+      const blockHTML = renderEntryBlock(
+        entry,
+        projects,
+        position,
+        syncedIds.has(entry.id)
+      );
       const tempDiv = document.createElement("div");
       tempDiv.innerHTML = blockHTML;
       const blockElement = tempDiv.firstElementChild as HTMLElement;

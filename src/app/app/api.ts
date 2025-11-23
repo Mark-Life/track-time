@@ -370,16 +370,23 @@ export const updateTimer = (projectId?: string) =>
 export const getEntries = Effect.gen(function* () {
   const localEntries = yield* getLocalEntries();
 
+  // Check cache for server entries (works both online and offline)
+  const cachedServerEntries = yield* getCached<Entry[]>(CacheKeys.entries);
+  const serverEntries = cachedServerEntries ?? [];
+
   if (!navigator.onLine) {
-    // Sort entries by start time (newest first) even when offline
-    return localEntries.sort(
+    // When offline, merge cached server entries with local entries
+    // Remove duplicates by ID (local entries take precedence if duplicate)
+    const serverIds = new Set(serverEntries.map((e) => e.id));
+    const uniqueLocalEntries = localEntries.filter((e) => !serverIds.has(e.id));
+    return [...serverEntries, ...uniqueLocalEntries].sort(
       (a, b) =>
         new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
   }
 
   // Use stale-while-revalidate: return cached immediately, fetch fresh in background
-  const serverEntries = yield* getCachedWithRevalidate(CacheKeys.entries, () =>
+  const freshServerEntries = yield* getCachedWithRevalidate(CacheKeys.entries, () =>
     Effect.gen(function* () {
       const response = yield* Effect.tryPromise({
         try: () => fetch("/api/entries", { credentials: "include" }),
@@ -388,7 +395,7 @@ export const getEntries = Effect.gen(function* () {
 
       if (!response.ok) {
         handleAuthError(response);
-        return localEntries;
+        return serverEntries;
       }
 
       const entries = yield* Effect.tryPromise({
@@ -401,9 +408,9 @@ export const getEntries = Effect.gen(function* () {
   );
 
   // Merge local and server entries, removing duplicates by ID
-  const serverIds = new Set(serverEntries.map((e) => e.id));
+  const serverIds = new Set(freshServerEntries.map((e) => e.id));
   const uniqueLocalEntries = localEntries.filter((e) => !serverIds.has(e.id));
-  return [...serverEntries, ...uniqueLocalEntries].sort(
+  return [...freshServerEntries, ...uniqueLocalEntries].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
   );
 });
