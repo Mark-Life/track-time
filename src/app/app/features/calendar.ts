@@ -20,6 +20,7 @@ import {
 } from "../ui/dom-elements.ts";
 
 const HOUR_HEIGHT = 60; // pixels per hour
+const HOUR_REGEX = /(\d+)\s+(AM|PM)/;
 
 /**
  * Gets the height per hour in pixels
@@ -133,20 +134,77 @@ const processEntriesForDay = (entries: Entry[], date: Date): Entry[] => {
 };
 
 /**
+ * Finds the minimum hour from entries
+ */
+const findMinHour = (entries: Entry[]): number => {
+  let minHour = 23;
+  for (const entry of entries) {
+    const startDate = new Date(entry.startedAt);
+    const startHour = startDate.getHours();
+    if (startHour < minHour) {
+      minHour = startHour;
+    }
+  }
+  return minHour;
+};
+
+/**
+ * Finds the maximum hour from entries
+ */
+const findMaxHour = (entries: Entry[]): number => {
+  let maxHour = 0;
+  for (const entry of entries) {
+    const endDate = new Date(entry.endedAt);
+    const endHour = endDate.getHours();
+    if (endHour > maxHour) {
+      maxHour = endHour;
+    }
+  }
+  return maxHour;
+};
+
+/**
+ * Determines the time range to display based on entries
+ * Returns { startHour, endHour } where startHour is 0-23 and endHour is 0-23
+ */
+const determineTimeRange = (
+  entries: Entry[]
+): { startHour: number; endHour: number } => {
+  if (entries.length === 0) {
+    // Default: 6 AM to 10 PM (22:00)
+    return { startHour: 6, endHour: 22 };
+  }
+
+  const minHour = findMinHour(entries);
+  const maxHour = findMaxHour(entries);
+
+  // If there are entries before 6 AM, show from midnight (0)
+  // Otherwise, start at 6 AM
+  const startHour = minHour < 6 ? 0 : 6;
+
+  // If there are entries after 10 PM (22:00), show until midnight (23)
+  // Otherwise, end at 10 PM (22:00)
+  const endHour = maxHour >= 22 ? 23 : 22;
+
+  return { startHour, endHour };
+};
+
+/**
  * Calculates the position (top and height) for an entry block
  */
 const calculateEntryPosition = (
   entry: Entry,
-  hourHeight: number
+  hourHeight: number,
+  startHour: number
 ): { top: number; height: number } => {
   const startDate = new Date(entry.startedAt);
-  const startHour = startDate.getHours();
+  const entryHour = startDate.getHours();
   const startMinutes = startDate.getMinutes();
   const startSeconds = startDate.getSeconds();
 
-  // Calculate top position in pixels
+  // Calculate top position in pixels, accounting for startHour offset
   const top =
-    startHour * hourHeight +
+    (entryHour - startHour) * hourHeight +
     (startMinutes * hourHeight) / 60 +
     (startSeconds * hourHeight) / 3600;
 
@@ -220,9 +278,16 @@ const renderEntryBlock = (
 /**
  * Renders the timeline with hour markers
  */
-const renderTimeline = (container: HTMLElement): Effect.Effect<void> =>
+const renderTimeline = (
+  container: HTMLElement,
+  startHour: number,
+  endHour: number
+): Effect.Effect<void> =>
   Effect.sync(() => {
-    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const hours = Array.from(
+      { length: endHour - startHour + 1 },
+      (_, i) => startHour + i
+    );
     const hourLabels = hours.map((hour) => {
       const hour12 = hour % 12 || 12;
       const ampm = hour < 12 ? "AM" : "PM";
@@ -230,17 +295,76 @@ const renderTimeline = (container: HTMLElement): Effect.Effect<void> =>
     });
 
     container.innerHTML = hourLabels
-      .map(
-        (item) => `
+      .map((item, index) => {
+        // Don't add border-b to the last hour to avoid double line with container border
+        const borderClass =
+          index === hourLabels.length - 1 ? "" : "border-b border-border";
+        return `
       <div
-        class="border-b border-border px-2 py-1 text-xs text-muted-foreground"
+        class="${borderClass} px-2 py-1 text-xs text-muted-foreground"
         style="height: ${HOUR_HEIGHT}px;"
       >
         ${item.label}
       </div>
-    `
-      )
+    `;
+      })
       .join("");
+  });
+
+/**
+ * Renders horizontal hour lines in the calendar
+ */
+const renderHourLines = (
+  container: HTMLElement,
+  startHour: number,
+  endHour: number
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    const hourHeight = getHourHeight();
+    const hours = Array.from(
+      { length: endHour - startHour + 1 },
+      (_, i) => startHour + i
+    );
+
+    // Create hour lines container if it doesn't exist
+    let linesContainer = container.querySelector(
+      ".calendar-hour-lines"
+    ) as HTMLElement;
+    if (!linesContainer) {
+      linesContainer = document.createElement("div");
+      linesContainer.className =
+        "calendar-hour-lines absolute inset-0 pointer-events-none";
+      container.appendChild(linesContainer);
+    }
+
+    // Render hour lines to align with timeline's border-b
+    // Timeline divs have height: HOUR_HEIGHT and border-b at bottom
+    // So borders appear at: HOUR_HEIGHT, 2*HOUR_HEIGHT, 3*HOUR_HEIGHT, etc.
+    // Use border-t positioned 1px above to account for border thickness
+    // Exclude the last hour since the container border handles the bottom edge
+    const hourLines = hours
+      .slice(0, -1) // Exclude last hour to avoid double line with container border
+      .map((hour) => {
+        // Position at the bottom of each hour cell, but 1px up to align with border-b
+        const top = (hour - startHour + 1) * hourHeight - 1;
+        return `
+          <div
+            class="border-t border-primary/20"
+            style="position: absolute; top: ${top}px; left: 0; right: 0; height: 0;"
+          ></div>
+        `;
+      })
+      .join("");
+
+    // Add top border line at position 0
+    const topLine = `
+      <div
+        class="border-t border-primary/20"
+        style="position: absolute; top: 0px; left: 0; right: 0; height: 0;"
+      ></div>
+    `;
+
+    linesContainer.innerHTML = topLine + hourLines;
   });
 
 /**
@@ -249,21 +373,38 @@ const renderTimeline = (container: HTMLElement): Effect.Effect<void> =>
 const renderEntryBlocks = (
   entries: Entry[],
   projects: Project[] | undefined,
-  container: HTMLElement
+  container: HTMLElement,
+  startHour: number
 ): Effect.Effect<void> =>
   Effect.sync(() => {
-    container.innerHTML = "";
+    // Clear only entry blocks, not hour lines
+    const entryBlocks = container.querySelectorAll("[data-entry-id]");
+    for (const block of Array.from(entryBlocks)) {
+      block.remove();
+    }
 
     const hourHeight = getHourHeight();
 
+    // Create entries container if it doesn't exist
+    let entriesContainer = container.querySelector(
+      ".calendar-entries-blocks"
+    ) as HTMLElement;
+    if (!entriesContainer) {
+      entriesContainer = document.createElement("div");
+      entriesContainer.className = "calendar-entries-blocks absolute inset-0";
+      container.appendChild(entriesContainer);
+    }
+
+    entriesContainer.innerHTML = "";
+
     for (const entry of entries) {
-      const position = calculateEntryPosition(entry, hourHeight);
+      const position = calculateEntryPosition(entry, hourHeight, startHour);
       const blockHTML = renderEntryBlock(entry, projects, position);
       const tempDiv = document.createElement("div");
       tempDiv.innerHTML = blockHTML;
       const blockElement = tempDiv.firstElementChild as HTMLElement;
       if (blockElement) {
-        container.appendChild(blockElement);
+        entriesContainer.appendChild(blockElement);
       }
     }
   });
@@ -278,14 +419,65 @@ const renderCalendarDay = (
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     yield* updateDateDisplay(date);
-    yield* renderTimeline(timelineContainer);
     const processedEntries = processEntriesForDay(entries, date);
+    const { startHour, endHour } = determineTimeRange(processedEntries);
+
+    // Update container height based on time range
+    const hourHeight = getHourHeight();
+    const totalHours = endHour - startHour + 1;
+    const containerHeight = totalHours * hourHeight;
+    calendarEntriesContainer.style.minHeight = `${containerHeight}px`;
+
+    yield* renderTimeline(timelineContainer, startHour, endHour);
+    yield* renderHourLines(calendarEntriesContainer, startHour, endHour);
     yield* renderEntryBlocks(
       processedEntries,
       projects,
-      calendarEntriesContainer
+      calendarEntriesContainer,
+      startHour
     );
   });
+
+/**
+ * Parses hour from timeline marker text
+ */
+const parseHourFromMarker = (hourText: string): number | null => {
+  const hourMatch = hourText.match(HOUR_REGEX);
+  if (!hourMatch || hourMatch.length < 3 || !hourMatch[1] || !hourMatch[2]) {
+    return null;
+  }
+
+  let hour = Number.parseInt(hourMatch[1], 10);
+  const ampm = hourMatch[2];
+  if (ampm === "PM" && hour !== 12) {
+    hour += 12;
+  } else if (ampm === "AM" && hour === 12) {
+    hour = 0;
+  }
+  return hour;
+};
+
+/**
+ * Gets the start hour from the timeline
+ */
+const getStartHourFromTimeline = (): number => {
+  const timeline = document.getElementById("calendar-timeline");
+  if (!timeline) {
+    return 0;
+  }
+
+  const firstHourMarker = timeline.querySelector("div");
+  if (!firstHourMarker) {
+    return 0;
+  }
+
+  const hourText = firstHourMarker.textContent?.trim();
+  if (!hourText) {
+    return 0;
+  }
+
+  return parseHourFromMarker(hourText) ?? 0;
+};
 
 /**
  * Gets the time from a click position in the calendar
@@ -297,8 +489,6 @@ const getTimeFromClickPosition = (
   const rect = container.getBoundingClientRect();
   const clickY = event.clientY - rect.top;
   const hourHeight = getHourHeight();
-  const clickedHour = Math.floor(clickY / hourHeight);
-  const clickedMinutes = Math.floor(((clickY % hourHeight) / hourHeight) * 60);
 
   // Get the current displayed date from the date display
   const dateDisplay = document.getElementById("calendar-date-display");
@@ -311,6 +501,14 @@ const getTimeFromClickPosition = (
   const displayedDate = displayedDateStr
     ? new Date(displayedDateStr)
     : new Date();
+
+  // Get the start hour from the timeline
+  const startHour = getStartHourFromTimeline();
+
+  // Calculate clicked hour relative to start hour
+  const relativeHour = Math.floor(clickY / hourHeight);
+  const clickedHour = startHour + relativeHour;
+  const clickedMinutes = Math.floor(((clickY % hourHeight) / hourHeight) * 60);
 
   const clickedTime = new Date(displayedDate);
   clickedTime.setHours(clickedHour, clickedMinutes, 0, 0);
