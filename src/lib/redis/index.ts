@@ -11,6 +11,7 @@ export {
 
 // Entry operations
 export {
+  createEntry,
   deleteEntry,
   getEntries,
   updateEntry,

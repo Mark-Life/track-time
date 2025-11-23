@@ -1,0 +1,94 @@
+import { Effect, Ref } from "effect";
+import type { Entry, Project, WebSocketMessage } from "~/lib/types.ts";
+import { getEntries, getProjects } from "../api.ts";
+import { setupCalendarClickHandlers } from "./calendar/calendar-interactions.ts";
+import { setupModalHandlers } from "./calendar/calendar-modal.ts";
+import { initializeDayNavigation } from "./calendar/calendar-navigation.ts";
+import { renderCalendarDay } from "./calendar/calendar-rendering.ts";
+import {
+  getCurrentDisplayedDate,
+  setCurrentDisplayedDate,
+} from "./calendar/calendar-utils.ts";
+
+/**
+ * Main initialization function for the calendar page
+ */
+export const initializeCalendarPage = Effect.gen(function* () {
+  // Create refs for entries and projects
+  const entriesRef = yield* Ref.make<Entry[]>([]);
+  const projectsRef = yield* Ref.make<Project[]>([]);
+
+  // Load initial data
+  const loadData = Effect.gen(function* () {
+    const entries = yield* getEntries;
+    const projects = yield* getProjects;
+
+    yield* Ref.set(entriesRef, entries);
+    yield* Ref.set(projectsRef, projects);
+
+    // Render initial day (today)
+    const today = new Date();
+    setCurrentDisplayedDate(today);
+    yield* renderCalendarDay(entries, projects, today);
+  });
+
+  yield* loadData;
+
+  // Setup day navigation
+  const today = new Date();
+  yield* initializeDayNavigation(today, entriesRef, projectsRef);
+
+  // Setup click handlers
+  yield* setupCalendarClickHandlers(entriesRef, projectsRef);
+
+  // Setup modal handlers
+  yield* setupModalHandlers(entriesRef, projectsRef);
+
+  // Setup WebSocket for real-time updates
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+  ws.onopen = () => {
+    Effect.runPromise(Effect.log("WebSocket connected (calendar page)"));
+  };
+
+  ws.onmessage = (event) => {
+    let message: WebSocketMessage;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      Effect.runPromise(
+        Effect.logError(`Failed to parse WebSocket message: ${error}`)
+      );
+      return;
+    }
+
+    // Handle entry-related messages
+    if (
+      message.type === "entry:updated" ||
+      message.type === "entry:deleted" ||
+      message.type === "timer:stopped"
+    ) {
+      Effect.runPromise(
+        Effect.catchAll(
+          Effect.gen(function* () {
+            const entries = yield* getEntries;
+            yield* Ref.set(entriesRef, entries);
+            const projects: Project[] = yield* Ref.get(projectsRef);
+            const currentDate = getCurrentDisplayedDate();
+            yield* renderCalendarDay(entries, projects, currentDate);
+          }),
+          (error) => Effect.logError(`Failed to update calendar: ${error}`)
+        )
+      );
+    }
+  };
+
+  ws.onerror = (error) => {
+    Effect.runPromise(Effect.logError(`WebSocket error: ${error}`));
+  };
+
+  ws.onclose = () => {
+    Effect.runPromise(Effect.log("WebSocket disconnected (calendar page)"));
+  };
+});

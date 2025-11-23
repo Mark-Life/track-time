@@ -408,6 +408,88 @@ export const getEntries = Effect.gen(function* () {
   );
 });
 
+export const createEntry = (
+  startedAt: string,
+  endedAt: string,
+  projectId?: string
+): Effect.Effect<Entry, Error> =>
+  Effect.gen(function* () {
+    yield* validateEntryDuration(startedAt, endedAt);
+
+    const startTime = new Date(startedAt).getTime();
+    const endTime = new Date(endedAt).getTime();
+    const duration = (endTime - startTime) / (1000 * 60 * 60);
+
+    const entry: Entry = {
+      id: crypto.randomUUID(),
+      startedAt,
+      endedAt,
+      duration,
+      ...(projectId ? { projectId } : {}),
+    };
+
+    if (!navigator.onLine) {
+      yield* saveEntryToLocal(entry);
+      return entry;
+    }
+
+    const makeCreateRequest = (token: string | null) =>
+      Effect.tryPromise({
+        try: () => {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers["X-CSRF-Token"] = token;
+          }
+          return fetch("/api/entries", {
+            method: "POST",
+            headers,
+            credentials: "include",
+            body: JSON.stringify({
+              startedAt,
+              endedAt,
+              ...(projectId ? { projectId } : {}),
+            }),
+          });
+        },
+        catch: (error) => {
+          Effect.runSync(saveEntryToLocal(entry));
+          return new Error(`Failed to create entry: ${error}`);
+        },
+      });
+
+    const csrfToken = getCsrfTokenFromCookie();
+    let createResponse = yield* makeCreateRequest(csrfToken);
+
+    // Handle CSRF error (403) by refreshing token and retrying
+    if (createResponse.status === 403) {
+      createResponse = yield* handleCsrfError(createResponse, (newCsrfToken) =>
+        makeCreateRequest(newCsrfToken)
+      );
+    }
+
+    if (!createResponse.ok) {
+      handleAuthError(createResponse);
+      yield* saveEntryToLocal(entry);
+      return entry;
+    }
+
+    const serverEntry: Entry = yield* Effect.tryPromise({
+      try: () => createResponse.json() as Promise<Entry>,
+      catch: (error) => {
+        Effect.runSync(saveEntryToLocal(entry));
+        return new Error(`Failed to parse entry JSON: ${error}`);
+      },
+    });
+
+    // Update localStorage with server entry
+    yield* saveEntryToLocal(serverEntry);
+    // Invalidate entries cache
+    yield* invalidateCache(CacheKeys.entries);
+    return serverEntry;
+  });
+
 export const updateEntry = (
   id: string,
   startedAt: string,

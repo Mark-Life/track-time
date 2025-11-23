@@ -1,8 +1,10 @@
 import { Effect } from "effect";
+import { initializeCalendarPage } from "../features/calendar.ts";
 import { initializeProjectsPage } from "../features/projects.ts";
 
 const timerPage = document.getElementById("timer-page") as HTMLDivElement;
 const projectsPage = document.getElementById("projects-page") as HTMLDivElement;
+const calendarPage = document.getElementById("calendar-page") as HTMLDivElement;
 const navLinks = Array.from(
   document.querySelectorAll(".nav-link")
 ) as HTMLAnchorElement[];
@@ -26,15 +28,20 @@ export const normalizeRoute = (route: string): string => {
 export const showPage = (route: string) => {
   const normalizedRoute = normalizeRoute(route);
 
+  // Hide all pages first
+  timerPage.classList.add("hidden");
+  projectsPage.classList.add("hidden");
+  calendarPage.classList.add("hidden");
+
+  // Show the appropriate page
   if (normalizedRoute === "/app/projects") {
-    timerPage.classList.add("hidden");
     projectsPage.classList.remove("hidden");
-    // Update URL without reload
     window.history.pushState({ route: normalizedRoute }, "", "/app/projects");
+  } else if (normalizedRoute === "/app/calendar") {
+    calendarPage.classList.remove("hidden");
+    window.history.pushState({ route: normalizedRoute }, "", "/app/calendar");
   } else {
     timerPage.classList.remove("hidden");
-    projectsPage.classList.add("hidden");
-    // Update URL without reload
     window.history.pushState({ route: normalizedRoute }, "", "/app");
   }
 
@@ -56,14 +63,22 @@ export const handleRouteNavigation = (
   route: string,
   initializeApp: Effect.Effect<void, Error>
 ) => {
-  showPage(route);
-  if (route === "/app/projects") {
+  const normalizedRoute = normalizeRoute(route);
+  showPage(normalizedRoute);
+
+  if (normalizedRoute === "/app/projects") {
     Effect.runPromise(
       Effect.catchAll(initializeProjectsPage, (error) =>
         Effect.logError(`Failed to initialize projects page: ${error}`)
       )
     );
-  } else if (route === "/app") {
+  } else if (normalizedRoute === "/app/calendar") {
+    Effect.runPromise(
+      Effect.catchAll(initializeCalendarPage, (error) =>
+        Effect.logError(`Failed to initialize calendar page: ${error}`)
+      )
+    );
+  } else if (normalizedRoute === "/app") {
     Effect.runPromise(
       Effect.catchAll(initializeApp, (error) =>
         Effect.logError(`Failed to initialize app: ${error}`)
@@ -78,9 +93,9 @@ export const handleRouteNavigation = (
 export const initializeRouting = (
   initializeApp: Effect.Effect<void, Error>
 ) => {
-  // Handle initial route
+  // Handle initial route - both show page and initialize it
   const currentRoute = normalizeRoute(window.location.pathname);
-  showPage(currentRoute);
+  handleRouteNavigation(currentRoute, initializeApp);
 
   // Handle navigation clicks
   for (const link of navLinks) {

@@ -55,6 +55,12 @@
             data-route="/app/projects"
             >Projects</a
           >
+          <a
+            href="/app/calendar"
+            class="nav-link text-sm hover:text-primary transition"
+            data-route="/app/calendar"
+            >Calendar</a
+          >
         </nav>
 
         <h1
@@ -124,6 +130,12 @@
               class="drawer-nav-link nav-link text-sm hover:text-primary transition py-2 px-3 rounded hover:bg-muted"
               data-route="/app/projects"
               >Projects</a
+            >
+            <a
+              href="/app/calendar"
+              class="drawer-nav-link nav-link text-sm hover:text-primary transition py-2 px-3 rounded hover:bg-muted"
+              data-route="/app/calendar"
+              >Calendar</a
             >
           </nav>
           <div class="border-t border-border p-4 flex flex-col gap-2">
@@ -337,6 +349,54 @@
         <div id="projects-container" class="space-y-2"></div>
       </div>
 
+      <!-- Calendar Page -->
+      <div id="calendar-page" class="route-page hidden">
+        <div
+          class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+        >
+          <h2 id="calendar-date-display" class="text-xl font-bold">
+            Monday, January 15, 2024
+          </h2>
+          <div class="flex items-center gap-2">
+            <button
+              id="calendar-prev-day-btn"
+              class="px-3 py-1 border border-border rounded hover:bg-muted transition cursor-pointer"
+              aria-label="Previous day"
+            >
+              ←
+            </button>
+            <button
+              id="calendar-today-btn"
+              class="px-3 py-1 border border-border rounded hover:bg-muted transition cursor-pointer"
+            >
+              Today
+            </button>
+            <button
+              id="calendar-next-day-btn"
+              class="px-3 py-1 border border-border rounded hover:bg-muted transition cursor-pointer"
+              aria-label="Next day"
+            >
+              →
+            </button>
+          </div>
+        </div>
+        <div class="relative border border-border rounded-lg overflow-hidden">
+          <div class="flex">
+            <!-- Timeline Column -->
+            <div
+              id="calendar-timeline"
+              class="w-20 border-r border-border bg-muted/30 flex-shrink-0"
+            >
+              <!-- Hour markers will be rendered here -->
+            </div>
+            <!-- Entries Column -->
+            <div id="calendar-entries-container" class="flex-1 relative">
+              <!-- Entry blocks will be positioned absolutely here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Delete Project Modal -->
       <div
         id="delete-modal"
@@ -369,6 +429,23 @@
             >
               Cancel
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar Entry Modal -->
+      <div
+        id="calendar-entry-modal"
+        class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      >
+        <div
+          class="bg-background p-6 rounded-lg max-w-3xl w-full mx-4 max-h-[90vh] min-h-[400px] overflow-visible flex flex-col"
+        >
+          <div
+            id="calendar-entry-modal-content"
+            class="flex-1 overflow-y-auto min-h-0"
+          >
+            <!-- Entry form will be rendered here -->
           </div>
         </div>
       </div>
