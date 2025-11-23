@@ -24,3 +24,26 @@ export const projectNameInput = document.getElementById(
 export const projectSubmitBtn = document.getElementById(
   "project-submit-btn"
 ) as HTMLButtonElement;
+
+// Calendar elements
+export const calendarPage = document.getElementById(
+  "calendar-page"
+) as HTMLDivElement;
+export const calendarEntriesContainer = document.getElementById(
+  "calendar-entries-container"
+) as HTMLDivElement;
+export const timelineContainer = document.getElementById(
+  "calendar-timeline"
+) as HTMLDivElement;
+export const dateDisplay = document.getElementById(
+  "calendar-date-display"
+) as HTMLHeadingElement;
+export const prevDayBtn = document.getElementById(
+  "calendar-prev-day-btn"
+) as HTMLButtonElement;
+export const nextDayBtn = document.getElementById(
+  "calendar-next-day-btn"
+) as HTMLButtonElement;
+export const todayBtn = document.getElementById(
+  "calendar-today-btn"
+) as HTMLButtonElement;
