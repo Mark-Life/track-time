@@ -8,6 +8,10 @@ import {
 import type { Project, Timer } from "~/lib/types.ts";
 import { getProjects, updateTimer } from "../api.ts";
 import type { AppRefs } from "../core/app-state.ts";
+import {
+  removeProjectSubmitLoading,
+  showProjectSubmitLoading,
+} from "../ui/dom.ts";
 
 /**
  * Populates project combobox with projects
@@ -130,15 +134,22 @@ export const setupProjectCreationHandlers = (
         return;
       }
 
+      // Show loading state immediately
+      yield* showProjectSubmitLoading();
+
       try {
         const project = yield* createProjectFn(name);
         // Store the project ID so WebSocket handler can select it
         yield* Ref.set(refs.pendingProjectIdRef, project.id);
         elements.container.classList.add("hidden");
         elements.input.value = "";
+        // Remove loading state on success
+        yield* removeProjectSubmitLoading();
         // Project will be added via WebSocket message
       } catch (error) {
         yield* Ref.set(refs.pendingProjectIdRef, null);
+        // Remove loading state on error
+        yield* removeProjectSubmitLoading();
         yield* Effect.logError(`Failed to create project: ${error}`);
         console.error(
           error instanceof Error ? error.message : "Failed to create project"

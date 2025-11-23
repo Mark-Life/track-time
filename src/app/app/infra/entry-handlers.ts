@@ -3,10 +3,12 @@ import type { Project } from "~/lib/types.ts";
 import { deleteEntry, getEntries, updateEntry } from "../api.ts";
 import {
   removeEntryDeleteLoading,
+  removeEntrySaveLoading,
   renderEntries,
   renderEntryEditForm,
   renderEntryView,
   showEntryDeleteLoading,
+  showEntrySaveLoading,
   showFormError,
 } from "../ui/dom.ts";
 
@@ -85,6 +87,7 @@ export const setupEntryClickHandlers = (
     // Edit button handler
     const editBtn = target.closest(".edit-entry-btn") as HTMLButtonElement;
     if (editBtn) {
+      event.stopPropagation();
       const entryId = editBtn.getAttribute("data-entry-id");
       if (!entryId) {
         return;
@@ -133,6 +136,7 @@ export const setupEntryClickHandlers = (
     // Delete button handler
     const deleteBtn = target.closest(".delete-entry-btn") as HTMLButtonElement;
     if (deleteBtn) {
+      event.stopPropagation();
       const entryId = deleteBtn.getAttribute("data-entry-id");
       if (!entryId) {
         return;
@@ -190,18 +194,25 @@ export const setupEntryFormHandler = (
     Effect.runPromise(
       Effect.catchAll(
         Effect.gen(function* () {
+          // Show loading state immediately
+          yield* showEntrySaveLoading(entryId);
+
           const updatedEntry = yield* updateEntry(
             entryId,
             validation.startedAt,
             validation.endedAt,
             validation.projectId
           );
+          // Remove loading state before rendering (renderEntryView replaces the element)
+          yield* removeEntrySaveLoading(entryId);
           const currentProjects: Project[] = yield* Ref.get(projectsRef);
           yield* renderEntryView(updatedEntry, currentProjects);
         }),
         (error) =>
           Effect.gen(function* () {
             yield* Effect.logError(`Failed to update entry: ${error}`);
+            // Remove loading state on error
+            yield* removeEntrySaveLoading(entryId);
             const errorMessage =
               error instanceof Error ? error.message : "Failed to update entry";
             yield* showFormError(form, errorMessage);

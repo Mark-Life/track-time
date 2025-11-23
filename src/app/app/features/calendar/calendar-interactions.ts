@@ -1,6 +1,9 @@
 import { Effect, Ref } from "effect";
 import type { Entry, Project } from "~/lib/types.ts";
-import { calendarEntriesContainer } from "../../ui/dom-elements.ts";
+import {
+  calendarEntriesContainer,
+  calendarPage,
+} from "../../ui/dom-elements.ts";
 import {
   getTimeFromPosition,
   roundToNearest5Minutes,
@@ -123,6 +126,21 @@ const handleEntryClick = (
   entriesRef: Ref.Ref<Entry[]>,
   projectsRef: Ref.Ref<Project[]>
 ): void => {
+  // Only handle clicks when calendar page is visible
+  if (calendarPage.classList.contains("hidden")) {
+    return;
+  }
+
+  // Don't open modal if clicking on buttons or interactive elements
+  if (
+    target.closest("button") ||
+    target.closest("input") ||
+    target.closest("form") ||
+    target.closest("a")
+  ) {
+    return;
+  }
+
   const entryBlock = target.closest("[data-entry-id]");
   if (entryBlock) {
     const entryId = entryBlock.getAttribute("data-entry-id");

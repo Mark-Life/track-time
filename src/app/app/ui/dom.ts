@@ -15,7 +15,12 @@ import {
 } from "~/components/ui/combobox.ts";
 import { showSkeleton } from "~/components/ui/skeleton.ts";
 import type { Entry, Project } from "~/lib/types.ts";
-import { entriesList, playPauseBtn, timerDisplay } from "./dom-elements.ts";
+import {
+  entriesList,
+  playPauseBtn,
+  projectSubmitBtn,
+  timerDisplay,
+} from "./dom-elements.ts";
 
 export const updateTimerDisplay = (text: string) =>
   Effect.sync(() => {
@@ -466,6 +471,80 @@ export const removeEntryDeleteLoading = (entryId: string) =>
   });
 
 /**
+ * Shows loading state on a save button for an entry
+ */
+export const showEntrySaveLoading = (entryId: string) =>
+  Effect.sync(() => {
+    const entryElement = entriesList.querySelector(
+      `[data-entry-id="${entryId}"]`
+    ) as HTMLElement;
+    if (!entryElement) {
+      return;
+    }
+
+    const saveBtn = entryElement.querySelector(
+      ".save-edit-btn"
+    ) as HTMLButtonElement;
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = loaderIcon(16);
+      saveBtn.className =
+        "save-edit-btn px-4 py-2 bg-muted text-muted-foreground rounded cursor-not-allowed flex items-center justify-center opacity-60";
+      saveBtn.setAttribute("aria-label", "Saving...");
+    }
+
+    // Disable form inputs during save
+    const form = entryElement.querySelector(
+      ".edit-entry-form"
+    ) as HTMLFormElement;
+    if (form) {
+      const inputs = Array.from(form.querySelectorAll("input, button"));
+      for (const input of inputs) {
+        if (input !== saveBtn) {
+          (input as HTMLElement).style.pointerEvents = "none";
+          (input as HTMLElement).style.opacity = "0.6";
+        }
+      }
+    }
+  });
+
+/**
+ * Removes loading state from an entry save button
+ */
+export const removeEntrySaveLoading = (entryId: string) =>
+  Effect.sync(() => {
+    const entryElement = entriesList.querySelector(
+      `[data-entry-id="${entryId}"]`
+    ) as HTMLElement;
+    if (!entryElement) {
+      return;
+    }
+
+    const saveBtn = entryElement.querySelector(
+      ".save-edit-btn"
+    ) as HTMLButtonElement;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = "Save";
+      saveBtn.className =
+        "save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer";
+      saveBtn.setAttribute("aria-label", "Save changes to entry");
+    }
+
+    // Re-enable form inputs
+    const form = entryElement.querySelector(
+      ".edit-entry-form"
+    ) as HTMLFormElement;
+    if (form) {
+      const inputs = Array.from(form.querySelectorAll("input, button"));
+      for (const input of inputs) {
+        (input as HTMLElement).style.pointerEvents = "";
+        (input as HTMLElement).style.opacity = "";
+      }
+    }
+  });
+
+/**
  * Removes an entry from the DOM without refetching
  */
 export const removeEntryFromDOM = (entryId: string) =>
@@ -483,4 +562,40 @@ export const removeEntryFromDOM = (entryId: string) =>
       entriesList.innerHTML =
         '<p class="text-gray-500" data-no-entries>No entries yet. Start tracking!</p>';
     }
+  });
+
+/**
+ * Shows loading state on project submit button
+ */
+export const showProjectSubmitLoading = () =>
+  Effect.sync(() => {
+    projectSubmitBtn.disabled = true;
+    projectSubmitBtn.innerHTML = loaderIcon(16);
+    projectSubmitBtn.className =
+      "bg-muted text-muted-foreground h-10 w-10 rounded cursor-not-allowed flex items-center justify-center shrink-0 opacity-60";
+    projectSubmitBtn.setAttribute("aria-label", "Creating...");
+  });
+
+/**
+ * Removes loading state from project submit button
+ */
+export const removeProjectSubmitLoading = () =>
+  Effect.sync(() => {
+    projectSubmitBtn.disabled = false;
+    projectSubmitBtn.innerHTML = `<svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>`;
+    projectSubmitBtn.className =
+      "bg-primary text-primary-foreground h-10 w-10 rounded hover:bg-primary/80 transition cursor-pointer flex items-center justify-center shrink-0";
+    projectSubmitBtn.setAttribute("aria-label", "Create project");
   });
