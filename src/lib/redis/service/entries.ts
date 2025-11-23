@@ -1,6 +1,6 @@
 import { Effect } from "effect";
-import type { Entry } from "~/lib/types.ts";
 import { validateEntryDuration } from "~/lib/entry-validation.ts";
+import type { Entry } from "~/lib/types.ts";
 import { Redis } from "../client.ts";
 
 const userKey = (userId: string, key: string): string =>
@@ -60,6 +60,61 @@ export const getEntries = (
     yield* Effect.log(`📋 Loaded ${sorted.length} entries from Redis`);
 
     return sorted;
+  });
+
+/**
+ * Create entry
+ */
+export const createEntry = ({
+  userId,
+  startedAt,
+  endedAt,
+  projectId,
+}: {
+  userId: string;
+  startedAt: string;
+  endedAt: string;
+  projectId?: string;
+}): Effect.Effect<Entry, Error, Redis> =>
+  Effect.gen(function* () {
+    const redis = yield* Redis;
+
+    yield* validateEntryDuration(startedAt, endedAt);
+
+    const startedAtDate = new Date(startedAt);
+    const endedAtDate = new Date(endedAt);
+    const startTime = startedAtDate.getTime();
+    const endTime = endedAtDate.getTime();
+    const duration = (endTime - startTime) / (1000 * 60 * 60);
+
+    const id = crypto.randomUUID();
+    const entry: Entry = {
+      id,
+      startedAt,
+      endedAt,
+      duration,
+      ...(projectId ? { projectId } : {}),
+    };
+
+    const entryData: Record<string, string> = {
+      id,
+      startedAt: entry.startedAt,
+      endedAt: entry.endedAt,
+      duration: entry.duration.toString(),
+      ...(entry.projectId ? { projectId: entry.projectId } : {}),
+    };
+
+    yield* redis.hset(userKey(userId, `entry:${id}`), entryData);
+    yield* redis.sadd(userKey(userId, "entries:list"), id);
+
+    yield* Effect.log(`✅ Created entry ${id}`);
+    yield* Effect.log(`   Started: ${entry.startedAt}`);
+    yield* Effect.log(`   Ended: ${entry.endedAt}`);
+    yield* Effect.log(
+      `   Duration: ${entry.duration.toFixed(4)} hours (${(entry.duration * 60).toFixed(2)} minutes)`
+    );
+
+    return entry;
   });
 
 /**

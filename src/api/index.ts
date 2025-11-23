@@ -9,6 +9,7 @@ import {
 } from "./auth.ts";
 import {
   handleEntriesGet,
+  handleEntryCreate,
   handleEntryDelete,
   handleEntryUpdate,
 } from "./entries.ts";
@@ -61,6 +62,10 @@ const handleEntriesRoutes = (
 ): Promise<Response> | null => {
   if (url.pathname === "/api/entries" && req.method === "GET") {
     return handleEntriesGet(req);
+  }
+
+  if (url.pathname === "/api/entries" && req.method === "POST") {
+    return handleEntryCreate(req, server);
   }
 
   const entriesMatch = url.pathname.match(ENTRIES_ID_REGEX);

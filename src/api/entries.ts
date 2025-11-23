@@ -5,7 +5,13 @@ import {
   isAuthError,
 } from "~/lib/auth/auth";
 import { validateEntryDuration } from "~/lib/entry-validation.ts";
-import { deleteEntry, getEntries, RedisLive, updateEntry } from "~/lib/redis";
+import {
+  createEntry,
+  deleteEntry,
+  getEntries,
+  RedisLive,
+  updateEntry,
+} from "~/lib/redis";
 import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
@@ -56,6 +62,11 @@ const createEntryUpdatedMessage = (entry: Entry): WebSocketMessage => ({
   data: { entry },
 });
 
+const createEntryCreatedMessage = (entry: Entry): WebSocketMessage => ({
+  type: "entry:updated", // Use updated type since created doesn't exist in WebSocketMessage
+  data: { entry },
+});
+
 export const handleEntriesGet = (req: Request) =>
   Effect.runPromise(
     Effect.provide(
@@ -75,6 +86,53 @@ export const handleEntriesGet = (req: Request) =>
     return Response.json(
       {
         error: error instanceof Error ? error.message : "Failed to get entries",
+      },
+      { status: 500 }
+    );
+  });
+
+export const handleEntryCreate = (req: Request, server: Server) =>
+  Effect.runPromise(
+    Effect.provide(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const userId = yield* getVerifiedUserId(req);
+          const body = yield* parseEntryUpdateBody(req);
+
+          const validationError = validateEntryDates(
+            body.startedAt,
+            body.endedAt
+          );
+          if (validationError) {
+            return validationError;
+          }
+
+          const entry = yield* createEntry({
+            userId,
+            startedAt: body.startedAt,
+            endedAt: body.endedAt,
+            projectId: body.projectId,
+          });
+
+          const message = createEntryCreatedMessage(entry);
+          server.publish(
+            `user:${userId}:timer:updates`,
+            JSON.stringify(message)
+          );
+
+          return Response.json(entry);
+        })
+      ),
+      RedisLive
+    )
+  ).catch((error) => {
+    if (isAuthError(error)) {
+      return createAuthErrorResponse();
+    }
+    return Response.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create entry",
       },
       { status: 500 }
     );

@@ -1,5 +1,5 @@
 import { Effect, Ref } from "effect";
-import { chevronIcon, editIcon, trashIcon } from "~/assets/icons";
+import { chevronIcon } from "~/assets/icons";
 import {
   type ComboboxOption,
   createCombobox,
@@ -7,7 +7,13 @@ import {
   updateComboboxOptions,
 } from "~/components/ui/combobox.ts";
 import type { Entry, Project, WebSocketMessage } from "~/lib/types.ts";
-import { deleteEntry, getEntries, getProjects, updateEntry } from "../api.ts";
+import {
+  createEntry,
+  deleteEntry,
+  getEntries,
+  getProjects,
+  updateEntry,
+} from "../api.ts";
 import { validateEntryForm } from "../infra/entry-handlers.ts";
 import { updateDateDisplay } from "../ui/calendar-dom.ts";
 import { showEntryDeleteLoading, showFormError } from "../ui/dom.ts";
@@ -244,33 +250,39 @@ const renderEntryBlock = (
 
   const startDate = new Date(entry.startedAt);
   const endDate = new Date(entry.endedAt);
-  const timeRange = `${formatTime(startDate)} - ${formatTime(endDate)}`;
+  const timeRange = `${formatTime(startDate)} - ${formatTime(endDate)} (${entry.duration.toFixed(2)}h)`;
+
+  const height = position.height;
+  const SMALL_THRESHOLD = 40; // Below this, use single line
+  const VERY_SMALL_THRESHOLD = 25; // Below this, show only project name
+
+  let content: string;
+  let containerClass: string;
+
+  if (height < VERY_SMALL_THRESHOLD) {
+    // Very small: only project name, smaller font, vertically centered
+    content = `<div class="text-[10px] font-semibold text-primary truncate">${projectName || "No project"}</div>`;
+    containerClass = "flex items-center px-1";
+  } else if (height < SMALL_THRESHOLD) {
+    // Small: project name and time in one line, vertically centered
+    content = `<div class="text-xs font-semibold text-primary truncate">${projectName || "No project"} <span class="text-[10px] text-muted-foreground font-normal">${timeRange}</span></div>`;
+    containerClass = "flex items-center px-1.5";
+  } else {
+    // Normal: two lines with full info
+    content = `
+      <div class="text-xs font-semibold text-primary mb-1">${projectName || "No project"}</div>
+      <div class="text-xs text-muted-foreground">${timeRange}</div>
+    `;
+    containerClass = "p-2";
+  }
 
   return `
     <div
-      class="absolute left-0 right-0 p-2 border border-border rounded bg-primary/10 hover:bg-primary/20 transition cursor-pointer group"
+      class="absolute left-0 right-0 ${containerClass} border border-border rounded bg-primary/20 hover:bg-primary/20 transition cursor-pointer overflow-hidden"
       style="top: ${position.top}px; height: ${position.height}px; min-height: ${position.height}px;"
       data-entry-id="${entry.id}"
     >
-      <div class="text-xs font-semibold text-primary mb-1">${projectName || "No project"}</div>
-      <div class="text-xs text-muted-foreground mb-1">${timeRange}</div>
-      <div class="text-xs font-bold">${entry.duration.toFixed(2)}h</div>
-      <div class="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-        <button
-          class="calendar-edit-entry-btn bg-primary text-primary-foreground p-1 rounded hover:bg-primary/80 cursor-pointer flex items-center justify-center"
-          data-entry-id="${entry.id}"
-          aria-label="Edit entry"
-        >
-          ${editIcon(12)}
-        </button>
-        <button
-          class="calendar-delete-entry-btn bg-destructive text-destructive-foreground p-1 rounded hover:bg-destructive/80 cursor-pointer flex items-center justify-center"
-          data-entry-id="${entry.id}"
-          aria-label="Delete entry"
-        >
-          ${trashIcon(12)}
-        </button>
-      </div>
+      ${content}
     </div>
   `;
 };
@@ -615,21 +627,38 @@ const renderEntryEditFormInModal = (
             id="${hiddenInputId}"
           />
         </div>
-        <div class="flex gap-2 justify-end">
-          <button
-            type="button"
-            class="calendar-cancel-edit-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
-            data-entry-id="${entry.id}"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="calendar-save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
-            data-entry-id="${entry.id}"
-          >
-            ${isNew ? "Create" : "Save"}
-          </button>
+        <div class="flex gap-2 justify-between">
+          <div>
+            ${
+              isNew
+                ? ""
+                : `
+            <button
+              type="button"
+              class="calendar-modal-delete-btn px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/80 cursor-pointer"
+              data-entry-id="${entry.id}"
+            >
+              Delete
+            </button>
+            `
+            }
+          </div>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="calendar-cancel-edit-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
+              data-entry-id="${entry.id}"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="calendar-save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
+              data-entry-id="${entry.id}"
+            >
+              ${isNew ? "Create" : "Save"}
+            </button>
+          </div>
         </div>
       </form>
     `;
@@ -675,6 +704,117 @@ const closeCalendarModal = (): Effect.Effect<void> =>
   });
 
 /**
+ * Refreshes calendar view after entry changes
+ */
+const refreshCalendarView = (refs: {
+  entriesRef: Ref.Ref<Entry[]>;
+  projectsRef: Ref.Ref<Project[]>;
+}): Effect.Effect<void> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      const entries: Entry[] = yield* getEntries;
+      yield* Ref.set(refs.entriesRef, entries);
+      const projects: Project[] = yield* Ref.get(refs.projectsRef);
+      const currentDate = getCurrentDisplayedDate();
+      yield* renderCalendarDay(entries, projects, currentDate);
+    }),
+    (error) => Effect.logError(`Failed to refresh calendar: ${error}`)
+  );
+
+/**
+ * Handles create entry from modal
+ */
+const handleModalCreate = (params: {
+  startedAt: string;
+  endedAt: string;
+  projectId: string | undefined;
+  entriesRef: Ref.Ref<Entry[]>;
+  projectsRef: Ref.Ref<Project[]>;
+  form: HTMLFormElement;
+}): Effect.Effect<void> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      yield* createEntry(params.startedAt, params.endedAt, params.projectId);
+      yield* closeCalendarModal();
+      yield* refreshCalendarView({
+        entriesRef: params.entriesRef,
+        projectsRef: params.projectsRef,
+      });
+    }),
+    (error) =>
+      Effect.gen(function* () {
+        yield* Effect.logError(`Failed to create entry: ${error}`);
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to create entry";
+        yield* showFormError(params.form, errorMessage);
+      })
+  );
+
+/**
+ * Handles update entry from modal
+ */
+const handleModalUpdate = (params: {
+  entryId: string;
+  startedAt: string;
+  endedAt: string;
+  projectId: string | undefined;
+  entriesRef: Ref.Ref<Entry[]>;
+  projectsRef: Ref.Ref<Project[]>;
+  form: HTMLFormElement;
+}): Effect.Effect<void> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      yield* updateEntry(
+        params.entryId,
+        params.startedAt,
+        params.endedAt,
+        params.projectId
+      );
+      yield* closeCalendarModal();
+      yield* refreshCalendarView({
+        entriesRef: params.entriesRef,
+        projectsRef: params.projectsRef,
+      });
+    }),
+    (error) =>
+      Effect.gen(function* () {
+        yield* Effect.logError(`Failed to update entry: ${error}`);
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to update entry";
+        yield* showFormError(params.form, errorMessage);
+      })
+  );
+
+/**
+ * Handles delete entry from modal
+ */
+const handleModalDelete = (params: {
+  entryId: string;
+  entriesRef: Ref.Ref<Entry[]>;
+  projectsRef: Ref.Ref<Project[]>;
+}): Effect.Effect<void> =>
+  Effect.catchAll(
+    Effect.gen(function* () {
+      yield* showEntryDeleteLoading(params.entryId);
+      yield* deleteEntry(params.entryId);
+      yield* closeCalendarModal();
+      yield* refreshCalendarView({
+        entriesRef: params.entriesRef,
+        projectsRef: params.projectsRef,
+      });
+    }),
+    (error) =>
+      Effect.gen(function* () {
+        yield* Effect.logError(`Failed to delete entry: ${error}`);
+        yield* closeCalendarModal();
+        yield* refreshCalendarView({
+          entriesRef: params.entriesRef,
+          projectsRef: params.projectsRef,
+        });
+      })
+  );
+
+/**
  * Sets up modal handlers (form submission, cancel, click outside)
  */
 const setupModalHandlers = (
@@ -682,15 +822,8 @@ const setupModalHandlers = (
   projectsRef: Ref.Ref<Project[]>
 ): Effect.Effect<void> =>
   Effect.sync(() => {
-    // Handle modal form submission (using event delegation)
-    const handleFormSubmit = (event: Event) => {
-      const form = event.target as HTMLFormElement;
-      if (!form.classList.contains("calendar-edit-entry-form")) {
-        return;
-      }
-
-      event.preventDefault();
-
+    // Handle form validation and submission
+    const processFormSubmission = (form: HTMLFormElement): void => {
       const entryId = form.getAttribute("data-entry-id");
       if (!entryId) {
         return;
@@ -703,50 +836,70 @@ const setupModalHandlers = (
       }
 
       const isNew = entryId === "temp-new";
+      const params = {
+        startedAt: validation.startedAt,
+        endedAt: validation.endedAt,
+        projectId: validation.projectId,
+        entriesRef,
+        projectsRef,
+        form,
+      };
 
       if (isNew) {
-        // For now, show an error that creation is not yet supported
-        // TODO: Add createEntry API function
-        Effect.runPromise(
-          showFormError(
-            form,
-            "Creating new entries from calendar is not yet supported. Please use the timer to create entries."
-          )
-        );
+        Effect.runPromise(handleModalCreate(params));
         return;
       }
 
-      // Update existing entry
+      Effect.runPromise(handleModalUpdate({ ...params, entryId }));
+    };
+
+    // Handle modal form submission (using event delegation)
+    const handleFormSubmit = (event: Event) => {
+      const form = event.target as HTMLFormElement;
+      if (!form.classList.contains("calendar-edit-entry-form")) {
+        return;
+      }
+
+      event.preventDefault();
+      processFormSubmission(form);
+    };
+
+    // Handle cancel button
+    const handleCancelClick = (): void => {
+      Effect.runPromise(closeCalendarModal());
+    };
+
+    // Handle delete button
+    const handleDeleteClick = (entryId: string): void => {
       Effect.runPromise(
-        Effect.catchAll(
-          Effect.gen(function* () {
-            yield* updateEntry(
-              entryId,
-              validation.startedAt,
-              validation.endedAt,
-              validation.projectId
-            );
-            yield* closeCalendarModal();
-            const entries: Entry[] = yield* getEntries;
-            yield* Ref.set(entriesRef, entries);
-            const projects: Project[] = yield* Ref.get(projectsRef);
-            const currentDate = getCurrentDisplayedDate();
-            yield* renderCalendarDay(entries, projects, currentDate);
-          }),
-          (error) =>
-            Effect.gen(function* () {
-              yield* Effect.logError(`Failed to update entry: ${error}`);
-              const errorMessage =
-                error instanceof Error
-                  ? error.message
-                  : "Failed to update entry";
-              yield* showFormError(form, errorMessage);
-            })
-        )
+        handleModalDelete({ entryId, entriesRef, projectsRef })
       );
     };
 
-    // Handle cancel button and click outside
+    // Process modal click actions
+    const processModalClick = (target: HTMLElement): void => {
+      const cancelBtn = target.closest(".calendar-cancel-edit-btn");
+      if (cancelBtn) {
+        handleCancelClick();
+        return;
+      }
+
+      const deleteBtn = target.closest(".calendar-modal-delete-btn");
+      if (deleteBtn) {
+        const entryId = deleteBtn.getAttribute("data-entry-id");
+        if (entryId) {
+          handleDeleteClick(entryId);
+        }
+        return;
+      }
+
+      // Close modal when clicking outside
+      if (target.id === "calendar-entry-modal") {
+        handleCancelClick();
+      }
+    };
+
+    // Handle cancel button, delete button, and click outside
     const handleModalClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       const modal = document.getElementById("calendar-entry-modal");
@@ -754,16 +907,7 @@ const setupModalHandlers = (
         return;
       }
 
-      const cancelBtn = target.closest(".calendar-cancel-edit-btn");
-      if (cancelBtn) {
-        Effect.runPromise(closeCalendarModal());
-        return;
-      }
-
-      // Close modal when clicking outside
-      if (target.id === "calendar-entry-modal") {
-        Effect.runPromise(closeCalendarModal());
-      }
+      processModalClick(target);
     };
 
     // Set up event listeners (only once)
@@ -782,45 +926,14 @@ const handleEditClick = (
   Effect.runPromise(
     Effect.catchAll(
       Effect.gen(function* () {
-        const entries = yield* Ref.get(entriesRef);
-        const projects = yield* Ref.get(projectsRef);
-        const entry = entries.find((e) => e.id === entryId);
+        const entries: Entry[] = yield* Ref.get(entriesRef);
+        const projects: Project[] = yield* Ref.get(projectsRef);
+        const entry = entries.find((e: Entry) => e.id === entryId);
         if (entry) {
           yield* renderEntryEditFormInModal(entry, projects);
         }
       }),
       (error) => Effect.logError(`Failed to show edit form: ${error}`)
-    )
-  );
-};
-
-/**
- * Handles delete button click
- */
-const handleDeleteClick = (
-  entryId: string,
-  entriesRef: Ref.Ref<Entry[]>,
-  projectsRef: Ref.Ref<Project[]>
-): void => {
-  Effect.runPromise(
-    Effect.catchAll(
-      Effect.gen(function* () {
-        yield* showEntryDeleteLoading(entryId);
-        yield* deleteEntry(entryId);
-        const entries = yield* getEntries;
-        const projects = yield* Ref.get(projectsRef);
-        const currentDate = getCurrentDisplayedDate();
-        yield* renderCalendarDay(entries, projects, currentDate);
-        yield* Ref.set(entriesRef, entries);
-      }),
-      (error) =>
-        Effect.gen(function* () {
-          yield* Effect.logError(`Failed to delete entry: ${error}`);
-          const entries = yield* Ref.get(entriesRef);
-          const projects = yield* Ref.get(projectsRef);
-          const currentDate = getCurrentDisplayedDate();
-          yield* renderCalendarDay(entries, projects, currentDate);
-        })
     )
   );
 };
@@ -853,7 +966,7 @@ const handleEmptySlotClick = (
   Effect.runPromise(
     Effect.catchAll(
       Effect.gen(function* () {
-        const projects = yield* Ref.get(projectsRef);
+        const projects: Project[] = yield* Ref.get(projectsRef);
         // Create a temporary entry for editing
         const tempEntry: Entry = {
           id: "temp-new",
@@ -877,26 +990,6 @@ const routeCalendarClick = (
   projectsRef: Ref.Ref<Project[]>
 ): void => {
   const target = event.target as HTMLElement;
-
-  // Edit button handler
-  const editBtn = target.closest(".calendar-edit-entry-btn");
-  if (editBtn) {
-    const entryId = editBtn.getAttribute("data-entry-id");
-    if (entryId) {
-      handleEditClick(entryId, entriesRef, projectsRef);
-    }
-    return;
-  }
-
-  // Delete button handler
-  const deleteBtn = target.closest(".calendar-delete-entry-btn");
-  if (deleteBtn) {
-    const entryId = deleteBtn.getAttribute("data-entry-id");
-    if (entryId) {
-      handleDeleteClick(entryId, entriesRef, projectsRef);
-    }
-    return;
-  }
 
   // Click on entry block itself (edit)
   const entryBlock = target.closest("[data-entry-id]");
