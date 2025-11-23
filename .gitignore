@@ -33,3 +33,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# Temporary build/dev files (created by scripts, should never be committed)
+manifest.json
+apple-touch-icon.png
