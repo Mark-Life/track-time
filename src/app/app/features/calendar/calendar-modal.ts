@@ -19,6 +19,210 @@ import { renderCalendarDay } from "./calendar-rendering.ts";
 import { getCurrentDisplayedDate } from "./calendar-utils.ts";
 
 /**
+ * Converts ISO date string to datetime-local format
+ */
+const isoToDatetimeLocal = (isoString: string): string => {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+/**
+ * Generates HTML content for entry edit form
+ */
+const generateEntryFormHTML = (
+  entry: Entry,
+  comboboxIds: {
+    comboboxId: string;
+    comboboxInputId: string;
+    comboboxListId: string;
+    hiddenInputId: string;
+  },
+  modalTitleId: string
+): string => {
+  const isNew = entry.id === "temp-new";
+  return `
+    <h3 id="${modalTitleId}" class="text-lg font-bold mb-6">${isNew ? "Create Entry" : "Edit Entry"}</h3>
+    <form class="calendar-edit-entry-form space-y-4" data-entry-id="${entry.id}">
+      <div class="flex flex-col gap-2">
+        <label for="calendar-entry-${entry.id}-start-time" class="text-sm font-medium">Start Time</label>
+        <input
+          id="calendar-entry-${entry.id}-start-time"
+          type="datetime-local"
+          name="startedAt"
+          value="${isoToDatetimeLocal(entry.startedAt)}"
+          required
+          class="px-3 py-2 border border-border rounded bg-background text-foreground"
+          aria-label="Start time for time entry"
+        />
+      </div>
+      <div class="flex flex-col gap-2">
+        <label for="calendar-entry-${entry.id}-end-time" class="text-sm font-medium">End Time</label>
+        <input
+          id="calendar-entry-${entry.id}-end-time"
+          type="datetime-local"
+          name="endedAt"
+          value="${isoToDatetimeLocal(entry.endedAt)}"
+          required
+          class="px-3 py-2 border border-border rounded bg-background text-foreground"
+          aria-label="End time for time entry"
+        />
+      </div>
+      <div class="flex flex-col gap-2 mb-4 relative">
+        <label for="${comboboxIds.comboboxInputId}" class="text-sm font-medium">Project</label>
+        <div
+          id="${comboboxIds.comboboxId}"
+          class="combobox-container relative z-50"
+          role="combobox"
+          aria-expanded="false"
+          aria-haspopup="listbox"
+        >
+          <div
+            class="flex items-center border border-border rounded bg-background cursor-pointer"
+          >
+            <input
+              id="${comboboxIds.comboboxInputId}"
+              type="text"
+              placeholder="No project"
+              autocomplete="off"
+              class="flex-1 px-3 py-2 bg-transparent text-foreground outline-none"
+              aria-autocomplete="list"
+              aria-controls="${comboboxIds.comboboxListId}"
+              role="combobox"
+            />
+            <button
+              data-combobox-button
+              type="button"
+              class="px-2 py-2 text-muted-foreground hover:text-foreground transition"
+              aria-label="Toggle project list"
+            >
+              ${chevronIcon(16)}
+            </button>
+          </div>
+          <div
+          id="${comboboxIds.comboboxListId}"
+          class="relative w-full mt-1 border border-border rounded bg-popover shadow-lg max-h-96 overflow-auto hidden"
+          role="listbox"
+        ></div>
+        </div>
+        <input
+          type="hidden"
+          name="projectId"
+          id="${comboboxIds.hiddenInputId}"
+        />
+      </div>
+      <div class="flex gap-2 justify-between">
+        <div>
+          ${
+            isNew
+              ? ""
+              : `
+          <button
+            type="button"
+            class="calendar-modal-delete-btn px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/80 cursor-pointer"
+            data-entry-id="${entry.id}"
+            aria-label="Delete time entry"
+          >
+            Delete
+          </button>
+          `
+          }
+        </div>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="calendar-cancel-edit-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
+            data-entry-id="${entry.id}"
+            aria-label="Cancel editing entry"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="calendar-save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
+            data-entry-id="${entry.id}"
+            aria-label="${isNew ? "Create time entry" : "Save changes to time entry"}"
+          >
+            ${isNew ? "Create" : "Save"}
+          </button>
+        </div>
+      </div>
+    </form>
+  `;
+};
+
+/**
+ * Manages focus for modal based on device type
+ */
+const setupModalFocus = (
+  modalContent: HTMLElement,
+  modalTitleId: string
+): void => {
+  const isTouchDevice =
+    "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  if (isTouchDevice) {
+    const titleElement = modalContent.querySelector<HTMLElement>(
+      `#${modalTitleId}`
+    );
+    if (titleElement) {
+      titleElement.setAttribute("tabindex", "-1");
+      titleElement.focus();
+    }
+  } else {
+    const firstInput = modalContent.querySelector<HTMLInputElement>(
+      'input[type="datetime-local"]'
+    );
+    if (firstInput) {
+      firstInput.focus();
+    }
+  }
+};
+
+/**
+ * Initializes combobox for project selection
+ */
+const initializeProjectCombobox = (
+  comboboxIds: {
+    comboboxId: string;
+    comboboxInputId: string;
+    comboboxListId: string;
+    hiddenInputId: string;
+  },
+  projects: Project[],
+  selectedProjectId: string | undefined
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    const projectOptions: ComboboxOption[] = [
+      { value: "", label: "No project" },
+      ...(projects || []).map((p) => ({ value: p.id, label: p.name })),
+    ];
+
+    yield* createCombobox({
+      containerId: comboboxIds.comboboxId,
+      inputId: comboboxIds.comboboxInputId,
+      listId: comboboxIds.comboboxListId,
+      placeholder: "No project",
+      emptyText: "No projects found",
+      onSelect: (value) =>
+        Effect.sync(() => {
+          const hiddenInput = document.getElementById(
+            comboboxIds.hiddenInputId
+          ) as HTMLInputElement;
+          if (hiddenInput) {
+            hiddenInput.value = value ?? "";
+          }
+        }),
+    });
+
+    yield* updateComboboxOptions(comboboxIds.comboboxId, projectOptions);
+    yield* setComboboxValue(comboboxIds.comboboxId, selectedProjectId || "");
+  });
+
+/**
  * Renders entry edit form in the modal
  */
 export const renderEntryEditFormInModal = (
@@ -34,171 +238,27 @@ export const renderEntryEditFormInModal = (
       return;
     }
 
-    const isoToDatetimeLocal = (isoString: string): string => {
-      const date = new Date(isoString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    const comboboxIds = {
+      comboboxId: `calendar-entry-${entry.id}-project-combobox`,
+      comboboxInputId: `calendar-entry-${entry.id}-project-combobox-input`,
+      comboboxListId: `calendar-entry-${entry.id}-project-combobox-list`,
+      hiddenInputId: `calendar-entry-${entry.id}-project-id-hidden`,
     };
 
-    const comboboxId = `calendar-entry-${entry.id}-project-combobox`;
-    const comboboxInputId = `calendar-entry-${entry.id}-project-combobox-input`;
-    const comboboxListId = `calendar-entry-${entry.id}-project-combobox-list`;
-    const hiddenInputId = `calendar-entry-${entry.id}-project-id-hidden`;
-
-    const isNew = entry.id === "temp-new";
-
     const modalTitleId = `calendar-entry-modal-title-${entry.id}`;
-    modalContent.innerHTML = `
-      <h3 id="${modalTitleId}" class="text-lg font-bold mb-6">${isNew ? "Create Entry" : "Edit Entry"}</h3>
-      <form class="calendar-edit-entry-form space-y-4" data-entry-id="${entry.id}">
-        <div class="flex flex-col gap-2">
-          <label for="calendar-entry-${entry.id}-start-time" class="text-sm font-medium">Start Time</label>
-          <input
-            id="calendar-entry-${entry.id}-start-time"
-            type="datetime-local"
-            name="startedAt"
-            value="${isoToDatetimeLocal(entry.startedAt)}"
-            required
-            class="px-3 py-2 border border-border rounded bg-background text-foreground"
-            aria-label="Start time for time entry"
-          />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label for="calendar-entry-${entry.id}-end-time" class="text-sm font-medium">End Time</label>
-          <input
-            id="calendar-entry-${entry.id}-end-time"
-            type="datetime-local"
-            name="endedAt"
-            value="${isoToDatetimeLocal(entry.endedAt)}"
-            required
-            class="px-3 py-2 border border-border rounded bg-background text-foreground"
-            aria-label="End time for time entry"
-          />
-        </div>
-        <div class="flex flex-col gap-2 mb-4 relative">
-          <label for="${comboboxInputId}" class="text-sm font-medium">Project</label>
-          <div
-            id="${comboboxId}"
-            class="combobox-container relative z-50"
-            role="combobox"
-            aria-expanded="false"
-            aria-haspopup="listbox"
-          >
-            <div
-              class="flex items-center border border-border rounded bg-background cursor-pointer"
-            >
-              <input
-                id="${comboboxInputId}"
-                type="text"
-                placeholder="No project"
-                autocomplete="off"
-                class="flex-1 px-3 py-2 bg-transparent text-foreground outline-none"
-                aria-autocomplete="list"
-                aria-controls="${comboboxListId}"
-                role="combobox"
-              />
-              <button
-                data-combobox-button
-                type="button"
-                class="px-2 py-2 text-muted-foreground hover:text-foreground transition"
-                aria-label="Toggle project list"
-              >
-                ${chevronIcon(16)}
-              </button>
-            </div>
-            <div
-            id="${comboboxListId}"
-            class="relative w-full mt-1 border border-border rounded bg-popover shadow-lg max-h-96 overflow-auto hidden"
-            role="listbox"
-          ></div>
-          </div>
-          <input
-            type="hidden"
-            name="projectId"
-            id="${hiddenInputId}"
-          />
-        </div>
-        <div class="flex gap-2 justify-between">
-          <div>
-            ${
-              isNew
-                ? ""
-                : `
-            <button
-              type="button"
-              class="calendar-modal-delete-btn px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/80 cursor-pointer"
-              data-entry-id="${entry.id}"
-              aria-label="Delete time entry"
-            >
-              Delete
-            </button>
-            `
-            }
-          </div>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="calendar-cancel-edit-btn px-4 py-2 border border-border rounded hover:bg-muted cursor-pointer"
-              data-entry-id="${entry.id}"
-              aria-label="Cancel editing entry"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="calendar-save-edit-btn px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 cursor-pointer"
-              data-entry-id="${entry.id}"
-              aria-label="${isNew ? "Create time entry" : "Save changes to time entry"}"
-            >
-              ${isNew ? "Create" : "Save"}
-            </button>
-          </div>
-        </div>
-      </form>
-    `;
+    modalContent.innerHTML = generateEntryFormHTML(
+      entry,
+      comboboxIds,
+      modalTitleId
+    );
 
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", modalTitleId);
     modal.classList.remove("hidden");
 
-    // Focus first input when modal opens
-    const firstInput = modalContent.querySelector<HTMLInputElement>(
-      'input[type="datetime-local"]'
-    );
-    if (firstInput) {
-      firstInput.focus();
-    }
-
-    // Initialize combobox
-    const projectOptions: ComboboxOption[] = [
-      { value: "", label: "No project" },
-      ...(projects || []).map((p) => ({ value: p.id, label: p.name })),
-    ];
-
-    yield* createCombobox({
-      containerId: comboboxId,
-      inputId: comboboxInputId,
-      listId: comboboxListId,
-      placeholder: "No project",
-      emptyText: "No projects found",
-      onSelect: (value) =>
-        Effect.sync(() => {
-          const hiddenInput = document.getElementById(
-            hiddenInputId
-          ) as HTMLInputElement;
-          if (hiddenInput) {
-            hiddenInput.value = value ?? "";
-          }
-        }),
-    });
-
-    yield* updateComboboxOptions(comboboxId, projectOptions);
-    yield* setComboboxValue(comboboxId, entry.projectId || "");
+    setupModalFocus(modalContent, modalTitleId);
+    yield* initializeProjectCombobox(comboboxIds, projects, entry.projectId);
   });
 
 /**
