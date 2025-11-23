@@ -93,9 +93,9 @@ export const handleRouteNavigation = (
 export const initializeRouting = (
   initializeApp: Effect.Effect<void, Error>
 ) => {
-  // Handle initial route
+  // Handle initial route - both show page and initialize it
   const currentRoute = normalizeRoute(window.location.pathname);
-  showPage(currentRoute);
+  handleRouteNavigation(currentRoute, initializeApp);
 
   // Handle navigation clicks
   for (const link of navLinks) {

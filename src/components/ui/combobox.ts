@@ -62,7 +62,7 @@ export const createCombobox = <T = string>(
 
     // Create a wrapper for options to separate from search input
     const optionsContainer = document.createElement("div");
-    optionsContainer.className = "max-h-60 overflow-auto";
+    optionsContainer.className = "max-h-96 overflow-auto";
     optionsContainer.setAttribute("role", "listbox");
 
     // Initialize list structure

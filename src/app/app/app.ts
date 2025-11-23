@@ -310,17 +310,5 @@ const initializeApp = Effect.gen(function* () {
 // Setup cleanup listeners
 setupCleanupListeners();
 
-// Initialize routing
+// Initialize routing (handles initial route and sets up navigation)
 initializeRouting(initializeApp);
-
-// Run the app based on current route
-const currentRouteOnLoad = normalizeRoute(window.location.pathname);
-if (currentRouteOnLoad === "/app/projects") {
-  // Projects page initialization is handled by routing
-} else {
-  Effect.runPromise(
-    Effect.catchAll(initializeApp, (error) =>
-      Effect.logError(`Failed to initialize app: ${error}`)
-    )
-  );
-}

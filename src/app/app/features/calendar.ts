@@ -550,8 +550,8 @@ const renderEntryEditFormInModal = (
     const isNew = entry.id === "temp-new";
 
     modalContent.innerHTML = `
-      <h3 class="text-lg font-bold mb-4">${isNew ? "Create Entry" : "Edit Entry"}</h3>
-      <form class="calendar-edit-entry-form space-y-3" data-entry-id="${entry.id}">
+      <h3 class="text-lg font-bold mb-6">${isNew ? "Create Entry" : "Edit Entry"}</h3>
+      <form class="calendar-edit-entry-form space-y-4" data-entry-id="${entry.id}">
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">Start Time</label>
           <input
@@ -572,11 +572,11 @@ const renderEntryEditFormInModal = (
             class="px-3 py-2 border border-border rounded bg-background text-foreground"
           />
         </div>
-        <div class="flex flex-col gap-2">
+        <div class="flex flex-col gap-2 mb-4 relative">
           <label class="text-sm font-medium">Project</label>
           <div
             id="${comboboxId}"
-            class="combobox-container relative"
+            class="combobox-container relative z-50"
             role="combobox"
             aria-expanded="false"
             aria-haspopup="listbox"
@@ -604,10 +604,10 @@ const renderEntryEditFormInModal = (
               </button>
             </div>
             <div
-              id="${comboboxListId}"
-              class="absolute z-50 w-full mt-1 border border-border rounded bg-popover shadow-lg max-h-60 overflow-auto hidden"
-              role="listbox"
-            ></div>
+            id="${comboboxListId}"
+            class="relative w-full mt-1 border border-border rounded bg-popover shadow-lg max-h-96 overflow-auto hidden"
+            role="listbox"
+          ></div>
           </div>
           <input
             type="hidden"
