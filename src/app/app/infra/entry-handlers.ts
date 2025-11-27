@@ -1,6 +1,6 @@
 import { Effect, Ref } from "effect";
 import type { Project } from "~/lib/types";
-import { deleteEntry, getEntries, updateEntry } from "../api";
+import { deleteEntry, getEntries, updateEntry } from "../api/entry";
 import {
   removeEntryDeleteLoading,
   removeEntrySaveLoading,

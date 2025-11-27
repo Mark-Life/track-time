@@ -1,6 +1,7 @@
 import { Effect, Ref } from "effect";
 import type { Entry, Project, Timer } from "~/lib/types";
-import { getEntries, startTimer, stopTimer } from "../api";
+import { getEntries } from "../api/entry";
+import { startTimer, stopTimer } from "../api/timer";
 import type { AppRefs } from "../core/app-state";
 import {
   renderEntries,

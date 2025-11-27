@@ -1,5 +1,10 @@
 import { Effect } from "effect";
-import { CacheKeys, invalidateCache, setCached } from "~/lib/cache";
+import {
+  CacheKeys,
+  getCachedWithRevalidate,
+  invalidateCache,
+  setCached,
+} from "~/lib/cache";
 import { validateEntryDuration } from "~/lib/entry-validation";
 import {
   clearLocalTimer,
@@ -14,6 +19,36 @@ import {
   handleAuthError,
   handleCsrfError,
 } from "./auth";
+
+export const getTimer = Effect.gen(function* () {
+  if (!navigator.onLine) {
+    const localTimer = yield* getTimerFromLocal();
+    return localTimer;
+  }
+
+  // Use stale-while-revalidate: return cached immediately, fetch fresh in background
+  return yield* getCachedWithRevalidate(CacheKeys.timer, () =>
+    Effect.gen(function* () {
+      const response: Response = yield* Effect.tryPromise({
+        try: () => fetch("/api/timer", { credentials: "include" }),
+        catch: (error) => new Error(`Failed to fetch timer: ${error}`),
+      });
+
+      if (!response.ok) {
+        handleAuthError(response);
+        const localTimer = yield* getTimerFromLocal();
+        return localTimer;
+      }
+
+      const timer = yield* Effect.tryPromise({
+        try: () => response.json() as Promise<Timer | null>,
+        catch: (error) => new Error(`Failed to parse timer JSON: ${error}`),
+      });
+
+      return timer;
+    })
+  );
+});
 
 export const startTimer = (startedAt?: string, projectId?: string) =>
   Effect.gen(function* () {

@@ -6,7 +6,8 @@ import {
   updateComboboxOptions,
 } from "~/components/ui/combobox";
 import type { Project, Timer } from "~/lib/types";
-import { getProjects, updateTimer } from "../api";
+import { getProjects } from "../api/project";
+import { updateTimer } from "../api/timer";
 import type { AppRefs } from "../core/app-state";
 import {
   removeProjectSubmitLoading,

@@ -2,7 +2,7 @@ import { Effect, Ref } from "effect";
 import { editIcon, trashIcon } from "~/assets/icons";
 import { showSkeleton } from "~/components/ui/skeleton";
 import type { Project, WebSocketMessage } from "~/lib/types";
-import { deleteProject, getProjects, updateProject } from "../api";
+import { deleteProject, getProjects, updateProject } from "../api/project";
 
 const projectsContainer = document.getElementById(
   "projects-container"
@@ -322,7 +322,7 @@ const setupLogoutButton = () => {
   logoutBtn.parentNode?.replaceChild(newLogoutBtn, logoutBtn);
 
   newLogoutBtn.addEventListener("click", () => {
-    import("../api.ts").then(({ logout }) => {
+    import("../api/auth.ts").then(({ logout }) => {
       Effect.runPromise(
         Effect.catchAll(logout, (error) =>
           Effect.gen(function* () {

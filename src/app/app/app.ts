@@ -4,7 +4,8 @@ import { initializeDrawer } from "~/components/ui/drawer";
 import { CacheKeys, getCached, setCached } from "~/lib/cache";
 import { getLocalEntries, getTimerFromLocal } from "~/lib/local-storage";
 import type { Entry, Project, Timer } from "~/lib/types";
-import { createProject, getEntries } from "./api";
+import { getEntries } from "./api/entry";
+import { createProject } from "./api/project";
 
 /**
  * Handles authentication errors (401) by redirecting to login.

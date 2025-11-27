@@ -7,7 +7,12 @@ import {
   updateComboboxOptions,
 } from "~/components/ui/combobox";
 import type { Entry, Project } from "~/lib/types";
-import { createEntry, deleteEntry, getEntries, updateEntry } from "../../api";
+import {
+  createEntry,
+  deleteEntry,
+  getEntries,
+  updateEntry,
+} from "../../api/entry";
 import { validateEntryForm } from "../../infra/entry-handlers";
 import { showEntryDeleteLoading, showFormError } from "../../ui/dom";
 import { renderCalendarDay } from "./calendar-rendering";

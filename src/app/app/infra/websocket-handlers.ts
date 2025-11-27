@@ -1,7 +1,7 @@
 import { Effect, Ref } from "effect";
 import { CacheKeys, invalidateCache, setCached } from "~/lib/cache";
 import type { Entry, Project, Timer, WebSocketMessage } from "~/lib/types";
-import { getEntries } from "../api";
+import { getEntries } from "../api/entry";
 import type { AppRefs } from "../core/app-state";
 import { populateProjectCombobox } from "../features/project-management";
 import {

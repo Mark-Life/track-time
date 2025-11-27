@@ -1,6 +1,7 @@
 import { Effect, Ref } from "effect";
 import type { Entry, Project, WebSocketMessage } from "~/lib/types";
-import { getEntries, getProjects } from "../api";
+import { getEntries } from "../api/entry";
+import { getProjects } from "../api/project";
 import { setupCalendarClickHandlers } from "./calendar/calendar-interactions";
 import { setupModalHandlers } from "./calendar/calendar-modal";
 import { initializeDayNavigation } from "./calendar/calendar-navigation";

@@ -7,13 +7,9 @@ import {
   getTimerFromLocal,
 } from "~/lib/local-storage";
 import type { Entry, Timer } from "~/lib/types";
-import {
-  createEntry,
-  getEntries,
-  getProjects,
-  getTimer,
-  startTimer,
-} from "../api";
+import { createEntry, getEntries } from "../api/entry";
+import { getProjects } from "../api/project";
+import { getTimer, startTimer } from "../api/timer";
 import { renderEntries } from "../ui/dom";
 import { startTimerUI } from "../ui/timer-ui";
 
