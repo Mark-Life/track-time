@@ -1,6 +1,6 @@
 import { watch } from "node:fs";
 import { join, relative } from "node:path";
-import type { Server } from "./types.ts";
+import type { Server } from "./types";
 
 // Resolve to src/ directory
 // In development: import.meta.dir ends with /server or /server/, so go up one level

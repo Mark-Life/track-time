@@ -1,7 +1,7 @@
 import { Effect } from "effect";
-import type { Project } from "~/lib/types.ts";
-import { Redis } from "../client.ts";
-import { deleteEntry, getEntries } from "./entries.ts";
+import type { Project } from "~/lib/types";
+import { Redis } from "../client";
+import { deleteEntry, getEntries } from "./entries";
 
 const userKey = (userId: string, key: string): string =>
   `user:${userId}:${key}`;
@@ -17,11 +17,11 @@ export const createProject = (
     const redis = yield* Redis;
 
     if (!name || name.trim().length === 0) {
-      yield* Effect.fail(new Error("Project name cannot be empty"));
+      return yield* Effect.fail(new Error("Project name cannot be empty"));
     }
 
     if (name.length > 100) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new Error("Project name cannot exceed 100 characters")
       );
     }
@@ -31,7 +31,7 @@ export const createProject = (
     const projects = yield* getProjects(userId);
     const duplicate = projects.find((p) => p.name === trimmedName);
     if (duplicate) {
-      yield* Effect.fail(new Error("Project name must be unique"));
+      return yield* Effect.fail(new Error("Project name must be unique"));
     }
 
     const id = crypto.randomUUID();
@@ -135,11 +135,11 @@ export const updateProject = (
     const redis = yield* Redis;
 
     if (!name || name.trim().length === 0) {
-      yield* Effect.fail(new Error("Project name cannot be empty"));
+      return yield* Effect.fail(new Error("Project name cannot be empty"));
     }
 
     if (name.length > 100) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new Error("Project name cannot exceed 100 characters")
       );
     }
@@ -148,7 +148,7 @@ export const updateProject = (
 
     const existing = yield* getProject(userId, id);
     if (!existing) {
-      yield* Effect.fail(new Error(`Project with id ${id} not found`));
+      return yield* Effect.fail(new Error(`Project with id ${id} not found`));
     }
 
     const projects = yield* getProjects(userId);
@@ -156,7 +156,7 @@ export const updateProject = (
       (p) => p.name === trimmedName && p.id !== id
     );
     if (duplicate) {
-      yield* Effect.fail(new Error("Project name must be unique"));
+      return yield* Effect.fail(new Error("Project name must be unique"));
     }
 
     const project: Project = { id, name: trimmedName };
@@ -184,7 +184,7 @@ export const deleteProject = (
 
     const existing = yield* getProject(userId, id);
     if (!existing) {
-      yield* Effect.fail(new Error(`Project with id ${id} not found`));
+      return yield* Effect.fail(new Error(`Project with id ${id} not found`));
     }
 
     if (deleteEntries) {

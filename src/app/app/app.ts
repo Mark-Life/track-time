@@ -1,10 +1,10 @@
 import "~/global.css";
 import { Effect, Ref } from "effect";
-import { initializeDrawer } from "~/components/ui/drawer.ts";
-import { CacheKeys, getCached, setCached } from "~/lib/cache.ts";
-import { getLocalEntries, getTimerFromLocal } from "~/lib/local-storage.ts";
-import type { Entry, Project, Timer } from "~/lib/types.ts";
-import { createProject, getEntries } from "./api.ts";
+import { initializeDrawer } from "~/components/ui/drawer";
+import { CacheKeys, getCached, setCached } from "~/lib/cache";
+import { getLocalEntries, getTimerFromLocal } from "~/lib/local-storage";
+import type { Entry, Project, Timer } from "~/lib/types";
+import { createProject, getEntries } from "./api";
 
 /**
  * Handles authentication errors (401) by redirecting to login.
@@ -22,22 +22,22 @@ import {
   createAppRefs,
   setupCleanupListeners,
   setWebSocketInstance,
-} from "./core/app-state.ts";
-import { initializeRouting } from "./core/routing.ts";
+} from "./core/app-state";
+import { initializeRouting } from "./core/routing";
 import {
   initializeProjectCombobox,
   populateProjectCombobox,
   setupProjectCreationHandlers,
-} from "./features/project-management.ts";
-import { loadUserEmail, setupLogout } from "./features/user-management.ts";
+} from "./features/project-management";
+import { loadUserEmail, setupLogout } from "./features/user-management";
 import {
   setupEntryClickHandlers,
   setupEntryFormHandler,
-} from "./infra/entry-handlers.ts";
-import { setupOnlineStatusListeners } from "./infra/online-status.ts";
-import { setupTimerButtonHandler } from "./infra/timer-handlers.ts";
-import { createWebSocket } from "./infra/websocket-handlers.ts";
-import { renderEntries, showEntriesLoading, showPlayButton } from "./ui/dom.ts";
+} from "./infra/entry-handlers";
+import { setupOnlineStatusListeners } from "./infra/online-status";
+import { setupTimerButtonHandler } from "./infra/timer-handlers";
+import { createWebSocket } from "./infra/websocket-handlers";
+import { renderEntries, showEntriesLoading, showPlayButton } from "./ui/dom";
 import {
   addProjectBtn,
   entriesList,
@@ -45,8 +45,8 @@ import {
   projectInputContainer,
   projectNameInput,
   projectSubmitBtn,
-} from "./ui/dom-elements.ts";
-import { startTimerUI } from "./ui/timer-ui.ts";
+} from "./ui/dom-elements";
+import { startTimerUI } from "./ui/timer-ui";
 
 // Accept HMR updates
 if (import.meta.hot) {

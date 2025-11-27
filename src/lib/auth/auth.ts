@@ -1,7 +1,7 @@
 import { Effect } from "effect";
-import type { JWTPayload } from "../types.ts";
-import { AuthError, CsrfError } from "../types.ts";
-import { verify } from "./jwt.ts";
+import type { JWTPayload } from "../types";
+import { AuthError, CsrfError } from "../types";
+import { verify } from "./jwt";
 
 // WeakMap to store verified userId per request (set by middleware)
 const verifiedUserIdMap = new WeakMap<Request, string>();
@@ -56,7 +56,9 @@ export const getUserId = (req: Request): Effect.Effect<string, Error> =>
     const token = yield* extractToken(req);
 
     if (!token) {
-      yield* Effect.fail(new AuthError("No authentication token provided"));
+      return yield* Effect.fail(
+        new AuthError("No authentication token provided")
+      );
     }
 
     const payload: JWTPayload = yield* Effect.catchAll(
@@ -104,7 +106,9 @@ export const getAuthPayload = (
     const token = yield* extractToken(req);
 
     if (!token) {
-      yield* Effect.fail(new AuthError("No authentication token provided"));
+      return yield* Effect.fail(
+        new AuthError("No authentication token provided")
+      );
     }
 
     return yield* Effect.catchAll(verify(token as string), (error) =>

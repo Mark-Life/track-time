@@ -1,5 +1,5 @@
 import { Effect, Ref } from "effect";
-import type { Project, Timer } from "~/lib/types.ts";
+import type { Project, Timer } from "~/lib/types";
 
 export type AppRefs = {
   timerRef: Ref.Ref<Timer | null>;

@@ -1,18 +1,18 @@
 import { Effect, Ref } from "effect";
-import type { Entry, Project, WebSocketMessage } from "~/lib/types.ts";
-import { getEntries, getProjects } from "../api.ts";
-import { setupCalendarClickHandlers } from "./calendar/calendar-interactions.ts";
-import { setupModalHandlers } from "./calendar/calendar-modal.ts";
-import { initializeDayNavigation } from "./calendar/calendar-navigation.ts";
+import type { Entry, Project, WebSocketMessage } from "~/lib/types";
+import { getEntries, getProjects } from "../api";
+import { setupCalendarClickHandlers } from "./calendar/calendar-interactions";
+import { setupModalHandlers } from "./calendar/calendar-modal";
+import { initializeDayNavigation } from "./calendar/calendar-navigation";
 import {
   renderCalendarDay,
   updateCurrentTimeIndicatorPosition,
-} from "./calendar/calendar-rendering.ts";
+} from "./calendar/calendar-rendering";
 import {
   getCurrentDisplayedDate,
   parseHourFromMarker,
   setCurrentDisplayedDate,
-} from "./calendar/calendar-utils.ts";
+} from "./calendar/calendar-utils";
 
 /**
  * Main initialization function for the calendar page

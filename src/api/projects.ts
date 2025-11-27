@@ -6,13 +6,13 @@ import {
 } from "~/lib/auth/auth";
 import { validateProjectName } from "~/lib/entry-validation";
 import {
-  RedisLive,
   createProject,
   deleteProject,
   getProjects,
+  RedisLive,
   updateProject,
 } from "~/lib/redis";
-import type { WebSocketMessage } from "~/lib/types.ts";
+import type { WebSocketMessage } from "~/lib/types";
 
 type Server = ReturnType<typeof Bun.serve>;
 

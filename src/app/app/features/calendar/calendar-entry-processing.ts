@@ -1,4 +1,4 @@
-import type { Entry } from "~/lib/types.ts";
+import type { Entry } from "~/lib/types";
 
 /**
  * Filters entries for a specific day (based on start date)
@@ -76,7 +76,7 @@ export const splitEntryAtMidnight = (entry: Entry): Entry[] => {
     startedAt: entry.startedAt,
     endedAt: midnight.toISOString(),
     duration: firstDuration,
-    projectId: entry.projectId,
+    projectId: entry.projectId ?? "",
   };
 
   // Create second entry (midnight to end)
@@ -85,7 +85,7 @@ export const splitEntryAtMidnight = (entry: Entry): Entry[] => {
     startedAt: midnight.toISOString(),
     endedAt: entry.endedAt,
     duration: secondDuration,
-    projectId: entry.projectId,
+    projectId: entry.projectId ?? "",
   };
 
   return [firstEntry, secondEntry];

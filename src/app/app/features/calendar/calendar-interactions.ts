@@ -1,15 +1,12 @@
 import { Effect, Ref } from "effect";
-import type { Entry, Project } from "~/lib/types.ts";
+import type { Entry, Project } from "~/lib/types";
+import { calendarEntriesContainer, calendarPage } from "../../ui/dom-elements";
+import { renderEntryEditFormInModal } from "./calendar-modal";
 import {
-  calendarEntriesContainer,
-  calendarPage,
-} from "../../ui/dom-elements.ts";
-import {
-  getTimeFromPosition,
-  roundToNearest5Minutes,
-} from "./calendar-utils.ts";
-import { renderSelectionIndicator, clearSelectionIndicator } from "./calendar-selection.ts";
-import { renderEntryEditFormInModal } from "./calendar-modal.ts";
+  clearSelectionIndicator,
+  renderSelectionIndicator,
+} from "./calendar-selection";
+import { getTimeFromPosition, roundToNearest5Minutes } from "./calendar-utils";
 
 /**
  * Handles edit button click
@@ -335,4 +332,3 @@ export const setupCalendarClickHandlers = (
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
     document.addEventListener("touchend", handleTouchEnd);
   });
-

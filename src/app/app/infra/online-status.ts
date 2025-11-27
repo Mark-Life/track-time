@@ -1,10 +1,10 @@
 import { Effect, type Ref } from "effect";
-import type { Timer } from "~/lib/types.ts";
-import { syncWithServer } from "../features/sync.ts";
+import type { Timer } from "~/lib/types";
+import { syncWithServer } from "../features/sync";
 import {
   hideOfflineIndicator,
   showOfflineIndicator,
-} from "../ui/offline-indicator.ts";
+} from "../ui/offline-indicator";
 
 /**
  * Updates online/offline status and syncs when coming back online

@@ -1,9 +1,9 @@
 // biome-ignore lint/performance/noBarrelFile: im ok with this
-export { chevronIcon } from "./chevron.ts";
-export { editIcon } from "./edit.ts";
-export { loaderIcon } from "./loader.ts";
-export { menuIcon, xIcon } from "./menu.ts";
-export { pauseIcon } from "./pause.ts";
-export { playIcon } from "./play.ts";
-export { plusIcon } from "./plus.ts";
-export { trashIcon } from "./trash.ts";
+export { chevronIcon } from "./chevron";
+export { editIcon } from "./edit";
+export { loaderIcon } from "./loader";
+export { menuIcon, xIcon } from "./menu";
+export { pauseIcon } from "./pause";
+export { playIcon } from "./play";
+export { plusIcon } from "./plus";
+export { trashIcon } from "./trash";

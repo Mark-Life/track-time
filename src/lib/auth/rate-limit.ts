@@ -1,6 +1,6 @@
 import { redis } from "bun";
 import { Effect } from "effect";
-import { AuthError } from "../types.ts";
+import { AuthError } from "../types";
 
 /**
  * Rate limit configuration for authentication endpoints.
@@ -174,7 +174,7 @@ export const rateLimitAuth = (
       const minutesUntilReset = Math.ceil(
         (ipLimit.resetAt - Math.floor(Date.now() / 1000)) / 60
       );
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError(
           `Too many attempts. Please try again in ${minutesUntilReset} minute${
             minutesUntilReset !== 1 ? "s" : ""
@@ -189,7 +189,7 @@ export const rateLimitAuth = (
       const minutesUntilReset = Math.ceil(
         (emailLimit.resetAt - Math.floor(Date.now() / 1000)) / 60
       );
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError(
           `Too many attempts for this email. Please try again in ${minutesUntilReset} minute${
             minutesUntilReset !== 1 ? "s" : ""

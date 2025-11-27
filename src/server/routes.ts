@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import { Effect } from "effect";
-import { handleApiRequest } from "../api/index.ts";
-import { extractToken, isCsrfError } from "../lib/auth/auth.ts";
-import { verify } from "../lib/auth/jwt.ts";
+import { handleApiRequest } from "../api/index";
+import { extractToken, isCsrfError } from "../lib/auth/auth";
+import { verify } from "../lib/auth/jwt";
 import {
   compose,
   rateLimitApiMiddleware,
@@ -10,10 +10,10 @@ import {
   requireAuthForAssets,
   requireCsrf,
   validateRequestSize,
-} from "../lib/auth/middleware.ts";
-import { getUserById } from "../lib/auth/users.ts";
-import type { Server, WebSocketData } from "./types.ts";
-import { createRedirectResponse } from "./utils.ts";
+} from "../lib/auth/middleware";
+import { getUserById } from "../lib/auth/users";
+import type { Server, WebSocketData } from "./types";
+import { createRedirectResponse } from "./utils";
 
 const runAuthMiddleware = async (req: Request): Promise<Response | null> => {
   // Request size validation runs first to reject oversized requests early

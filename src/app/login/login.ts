@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { login, register } from "./auth.ts";
+import { login, register } from "./auth";
 
 const authForm = document.getElementById("auth-form") as HTMLFormElement;
 const emailInput = document.getElementById("email") as HTMLInputElement;

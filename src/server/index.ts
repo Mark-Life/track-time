@@ -3,20 +3,20 @@ import { Effect } from "effect";
 import landing from "~/app/index.html";
 import login from "~/app/login/login.html";
 import { Redis, RedisLive } from "~/lib/redis";
-import { handleAssets } from "./assets.ts";
+import { handleAssets } from "./assets";
 import {
   handleApiRoutes,
   handleAppRoutes,
   handleHMRWebSocketUpgrade,
   handleWebSocketUpgrade,
   runAuthMiddleware,
-} from "./routes.ts";
-import type { Server, WebSocketData } from "./types.ts";
+} from "./routes";
+import type { Server, WebSocketData } from "./types";
 import {
   cleanupWatcher,
   initializeWatcher,
   setServerInstance,
-} from "./watcher.ts";
+} from "./watcher";
 
 /**
  * Checks token expiration and sends appropriate messages to the client.
@@ -240,7 +240,7 @@ export const startServer = async () =>
           yield* Effect.log("✅ Server started successfully");
 
           // Keep the server running
-          yield* Effect.never;
+          return yield* Effect.never;
         })
       ),
       RedisLive

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
-import { validateEntryDuration } from "~/lib/entry-validation.ts";
-import type { Entry } from "~/lib/types.ts";
-import { Redis } from "../client.ts";
+import { validateEntryDuration } from "~/lib/entry-validation";
+import type { Entry } from "~/lib/types";
+import { Redis } from "../client";
 
 const userKey = (userId: string, key: string): string =>
   `user:${userId}:${key}`;

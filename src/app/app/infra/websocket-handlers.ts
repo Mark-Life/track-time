@@ -1,16 +1,16 @@
 import { Effect, Ref } from "effect";
-import { CacheKeys, invalidateCache, setCached } from "~/lib/cache.ts";
-import type { Entry, Project, Timer, WebSocketMessage } from "~/lib/types.ts";
-import { getEntries } from "../api.ts";
-import type { AppRefs } from "../core/app-state.ts";
-import { populateProjectCombobox } from "../features/project-management.ts";
+import { CacheKeys, invalidateCache, setCached } from "~/lib/cache";
+import type { Entry, Project, Timer, WebSocketMessage } from "~/lib/types";
+import { getEntries } from "../api";
+import type { AppRefs } from "../core/app-state";
+import { populateProjectCombobox } from "../features/project-management";
 import {
   addEntryToList,
   removeEntryFromDOM,
   renderEntries,
   renderEntryView,
-} from "../ui/dom.ts";
-import { startTimerUI, stopTimerUI } from "../ui/timer-ui.ts";
+} from "../ui/dom";
+import { startTimerUI, stopTimerUI } from "../ui/timer-ui";
 
 /**
  * Handles timer started message

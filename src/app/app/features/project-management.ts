@@ -4,14 +4,14 @@ import {
   createCombobox,
   setComboboxValue,
   updateComboboxOptions,
-} from "~/components/ui/combobox.ts";
-import type { Project, Timer } from "~/lib/types.ts";
-import { getProjects, updateTimer } from "../api.ts";
-import type { AppRefs } from "../core/app-state.ts";
+} from "~/components/ui/combobox";
+import type { Project, Timer } from "~/lib/types";
+import { getProjects, updateTimer } from "../api";
+import type { AppRefs } from "../core/app-state";
 import {
   removeProjectSubmitLoading,
   showProjectSubmitLoading,
-} from "../ui/dom.ts";
+} from "../ui/dom";
 
 /**
  * Populates project combobox with projects

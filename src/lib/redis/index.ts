@@ -1,22 +1,12 @@
 // Redis client and service
-export { Redis, RedisLive } from "./client.ts";
-
-// Timer operations
-export {
-  getActiveTimer,
-  startTimer,
-  stopTimer,
-  updateTimerProject,
-} from "./service/timer.ts";
-
+export { Redis, RedisLive } from "./client";
 // Entry operations
 export {
   createEntry,
   deleteEntry,
   getEntries,
   updateEntry,
-} from "./service/entries.ts";
-
+} from "./service/entries";
 // Project operations
 export {
   createProject,
@@ -24,4 +14,11 @@ export {
   getProject,
   getProjects,
   updateProject,
-} from "./service/projects.ts";
+} from "./service/projects";
+// Timer operations
+export {
+  getActiveTimer,
+  startTimer,
+  stopTimer,
+  updateTimerProject,
+} from "./service/timer";

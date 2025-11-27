@@ -1,16 +1,16 @@
 import { Effect } from "effect";
-import type { Entry, Project } from "~/lib/types.ts";
+import type { Entry, Project } from "~/lib/types";
 import {
   calendarEntriesContainer,
   timelineContainer,
-} from "../../ui/dom-elements.ts";
-import { HOUR_HEIGHT } from "./calendar-constants.ts";
+} from "../../ui/dom-elements";
+import { HOUR_HEIGHT } from "./calendar-constants";
 import {
   calculateCurrentTimePosition,
   formatTime,
   getHourHeight,
   isViewingToday,
-} from "./calendar-utils.ts";
+} from "./calendar-utils";
 
 /**
  * Calculates the position (top and height) for an entry block
@@ -252,9 +252,9 @@ const renderEntryBlocks = (
     }
   });
 
-import { updateDateDisplay } from "../../ui/calendar-dom.ts";
-import { processEntriesForDay } from "./calendar-entry-processing.ts";
-import { determineTimeRange } from "./calendar-time-range.ts";
+import { updateDateDisplay } from "../../ui/calendar-dom";
+import { processEntriesForDay } from "./calendar-entry-processing";
+import { determineTimeRange } from "./calendar-time-range";
 
 /**
  * Updates the current time indicator position (lightweight, non-blocking)

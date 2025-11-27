@@ -1,6 +1,6 @@
 import { Effect } from "effect";
-import { initializeCalendarPage } from "../features/calendar.ts";
-import { initializeProjectsPage } from "../features/projects.ts";
+import { initializeCalendarPage } from "../features/calendar";
+import { initializeProjectsPage } from "../features/projects";
 
 const timerPage = document.getElementById("timer-page") as HTMLDivElement;
 const projectsPage = document.getElementById("projects-page") as HTMLDivElement;

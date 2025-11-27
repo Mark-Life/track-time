@@ -1,8 +1,8 @@
 import { Effect } from "effect";
-import { extractToken, getVerifiedUserId, setVerifiedUserId } from "./auth.ts";
-import { requireCsrfToken } from "./csrf.ts";
-import { verify } from "./jwt.ts";
-import { rateLimitApi } from "./rate-limit-general.ts";
+import { extractToken, getVerifiedUserId, setVerifiedUserId } from "./auth";
+import { requireCsrfToken } from "./csrf";
+import { verify } from "./jwt";
+import { rateLimitApi } from "./rate-limit-general";
 
 export type Middleware = (
   req: Request

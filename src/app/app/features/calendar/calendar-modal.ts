@@ -5,18 +5,13 @@ import {
   createCombobox,
   setComboboxValue,
   updateComboboxOptions,
-} from "~/components/ui/combobox.ts";
-import type { Entry, Project } from "~/lib/types.ts";
-import {
-  createEntry,
-  deleteEntry,
-  getEntries,
-  updateEntry,
-} from "../../api.ts";
-import { validateEntryForm } from "../../infra/entry-handlers.ts";
-import { showEntryDeleteLoading, showFormError } from "../../ui/dom.ts";
-import { renderCalendarDay } from "./calendar-rendering.ts";
-import { getCurrentDisplayedDate } from "./calendar-utils.ts";
+} from "~/components/ui/combobox";
+import type { Entry, Project } from "~/lib/types";
+import { createEntry, deleteEntry, getEntries, updateEntry } from "../../api";
+import { validateEntryForm } from "../../infra/entry-handlers";
+import { showEntryDeleteLoading, showFormError } from "../../ui/dom";
+import { renderCalendarDay } from "./calendar-rendering";
+import { getCurrentDisplayedDate } from "./calendar-utils";
 
 /**
  * Converts ISO date string to datetime-local format

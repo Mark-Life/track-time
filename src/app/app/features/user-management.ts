@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getCurrentUser, logout } from "../api.ts";
+import { getCurrentUser, logout } from "../api";
 
 /**
  * Loads and displays user email

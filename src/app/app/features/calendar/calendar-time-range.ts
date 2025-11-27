@@ -1,4 +1,4 @@
-import type { Entry } from "~/lib/types.ts";
+import type { Entry } from "~/lib/types";
 
 /**
  * Finds the minimum hour from entries

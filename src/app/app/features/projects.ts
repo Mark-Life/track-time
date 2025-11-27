@@ -1,8 +1,8 @@
 import { Effect, Ref } from "effect";
 import { editIcon, trashIcon } from "~/assets/icons";
-import { showSkeleton } from "~/components/ui/skeleton.ts";
-import type { Project, WebSocketMessage } from "~/lib/types.ts";
-import { deleteProject, getProjects, updateProject } from "../api.ts";
+import { showSkeleton } from "~/components/ui/skeleton";
+import type { Project, WebSocketMessage } from "~/lib/types";
+import { deleteProject, getProjects, updateProject } from "../api";
 
 const projectsContainer = document.getElementById(
   "projects-container"
@@ -111,7 +111,7 @@ const showDeleteModal = (project: Project) =>
     deleteModal.setAttribute("aria-modal", "true");
     deleteModal.setAttribute("aria-labelledby", "delete-modal-title");
     deleteModal.classList.remove("hidden");
-    
+
     // Focus first button when modal opens
     const firstButton = deleteEntriesBtn;
     if (firstButton) {

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { User } from "~/lib/types.ts";
+import type { User } from "~/lib/types";
 
 export const login = (
   email: string,
@@ -24,7 +24,7 @@ export const login = (
       });
       const errorMessage =
         errorData instanceof Error ? errorData.message : errorData.error;
-      yield* Effect.fail(new Error(errorMessage));
+      return yield* Effect.fail(new Error(errorMessage));
     }
 
     // Parse response to ensure it's valid JSON
@@ -57,7 +57,7 @@ export const register = (
       });
       const errorMessage =
         errorData instanceof Error ? errorData.message : errorData.error;
-      yield* Effect.fail(new Error(errorMessage));
+      return yield* Effect.fail(new Error(errorMessage));
     }
 
     const data = yield* Effect.tryPromise({
@@ -80,7 +80,7 @@ export const logout = (): Effect.Effect<void, Error> =>
     });
 
     if (!response.ok) {
-      yield* Effect.fail(new Error("Logout failed"));
+      return yield* Effect.fail(new Error("Logout failed"));
     }
 
     window.location.href = "/login";
@@ -101,7 +101,7 @@ export const getCurrentUser = (): Effect.Effect<User | null, Error> =>
     }
 
     if (!response.ok) {
-      yield* Effect.fail(new Error("Failed to get current user"));
+      return yield* Effect.fail(new Error("Failed to get current user"));
     }
 
     const data = yield* Effect.tryPromise({

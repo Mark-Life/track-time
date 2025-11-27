@@ -1,4 +1,4 @@
-import { HOUR_HEIGHT, HOUR_REGEX } from "./calendar-constants.ts";
+import { HOUR_HEIGHT, HOUR_REGEX } from "./calendar-constants";
 
 /**
  * Gets the height per hour in pixels

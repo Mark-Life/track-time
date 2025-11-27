@@ -1,11 +1,11 @@
 import { Effect, Ref } from "effect";
-import type { Entry, Project } from "~/lib/types.ts";
-import { nextDayBtn, prevDayBtn, todayBtn } from "../../ui/dom-elements.ts";
-import { renderCalendarDay } from "./calendar-rendering.ts";
+import type { Entry, Project } from "~/lib/types";
+import { nextDayBtn, prevDayBtn, todayBtn } from "../../ui/dom-elements";
+import { renderCalendarDay } from "./calendar-rendering";
 import {
   getCurrentDisplayedDate,
   setCurrentDisplayedDate,
-} from "./calendar-utils.ts";
+} from "./calendar-utils";
 
 /**
  * Initializes day navigation handlers
@@ -68,4 +68,3 @@ export const initializeDayNavigation = (
       );
     });
   });
-

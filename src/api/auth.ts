@@ -7,15 +7,15 @@ import {
   requireAuth,
   setAuthCookie,
 } from "~/lib/auth/auth";
-import { createCsrfToken, setCsrfCookie } from "~/lib/auth/csrf.ts";
+import { createCsrfToken, setCsrfCookie } from "~/lib/auth/csrf";
 import { sign } from "~/lib/auth/jwt";
 import {
   rateLimitAuth,
   recordFailedAttempt,
   recordSuccess,
-} from "~/lib/auth/rate-limit.ts";
+} from "~/lib/auth/rate-limit";
 import { authenticateUser, createUser, getUserById } from "~/lib/auth/users";
-import { AuthError, type User } from "~/lib/types.ts";
+import { AuthError, type User } from "~/lib/types";
 
 const parseAuthBody = (
   req: Request

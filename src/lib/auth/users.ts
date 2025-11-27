@@ -1,7 +1,7 @@
 import { redis } from "bun";
 import { Effect } from "effect";
-import type { User } from "~/lib/types.ts";
-import { AuthError } from "~/lib/types.ts";
+import type { User } from "~/lib/types";
+import { AuthError } from "~/lib/types";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UPPERCASE_REGEX = /[A-Z]/;
@@ -31,7 +31,7 @@ const SEQUENCES = [
 const validateEmail = (email: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     if (!EMAIL_REGEX.test(email)) {
-      yield* Effect.fail(new AuthError("Invalid email format"));
+      return yield* Effect.fail(new AuthError("Invalid email format"));
     }
   });
 
@@ -41,13 +41,13 @@ const validateEmail = (email: string): Effect.Effect<void, Error> =>
 const validatePasswordLength = (password: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     if (password.length < 8) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError("Password must be at least 8 characters long")
       );
     }
 
     if (password.length > 128) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError("Password must be no more than 128 characters long")
       );
     }
@@ -59,25 +59,25 @@ const validatePasswordLength = (password: string): Effect.Effect<void, Error> =>
 const validatePasswordChars = (password: string): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     if (!UPPERCASE_REGEX.test(password)) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError("Password must contain at least one uppercase letter")
       );
     }
 
     if (!LOWERCASE_REGEX.test(password)) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError("Password must contain at least one lowercase letter")
       );
     }
 
     if (!NUMBER_REGEX.test(password)) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError("Password must contain at least one number")
       );
     }
 
     if (!SPECIAL_CHAR_REGEX.test(password)) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError(
           "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;':\",./<>?)"
         )
@@ -96,7 +96,7 @@ const validatePasswordStrength = (
 
     // Check for common weak passwords
     if (COMMON_PASSWORDS.some((weak) => passwordLower.includes(weak))) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError(
           "Password is too common or weak. Please choose a stronger password"
         )
@@ -105,7 +105,7 @@ const validatePasswordStrength = (
 
     // Check for repeated characters (e.g., "aaaaaa", "11111111")
     if (REPEATED_CHAR_REGEX.test(password)) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new AuthError("Password contains too many repeated characters")
       );
     }
@@ -115,7 +115,7 @@ const validatePasswordStrength = (
       for (let i = 0; i <= seq.length - 4; i++) {
         const subseq = seq.slice(i, i + 4);
         if (passwordLower.includes(subseq)) {
-          yield* Effect.fail(
+          return yield* Effect.fail(
             new AuthError(
               "Password contains sequential characters. Please choose a stronger password"
             )
@@ -180,7 +180,7 @@ export const createUser = (
 
     if (emailAdded === 0) {
       // Email already exists - race condition prevented
-      yield* Effect.fail(new AuthError("Email already registered"));
+      return yield* Effect.fail(new AuthError("Email already registered"));
     }
 
     // Email was successfully reserved atomically, now create user data
@@ -249,7 +249,7 @@ export const authenticateUser = (
     });
 
     if (!userId) {
-      yield* Effect.fail(new AuthError("Invalid email or password"));
+      return yield* Effect.fail(new AuthError("Invalid email or password"));
     }
 
     const userData = yield* Effect.tryPromise({
@@ -258,12 +258,12 @@ export const authenticateUser = (
     });
 
     if (!userData) {
-      yield* Effect.fail(new AuthError("Invalid email or password"));
+      return yield* Effect.fail(new AuthError("Invalid email or password"));
     }
 
     const passwordHash = userData["passwordHash"];
     if (!passwordHash) {
-      yield* Effect.fail(new AuthError("Invalid email or password"));
+      return yield* Effect.fail(new AuthError("Invalid email or password"));
     }
 
     const isValid = yield* Effect.tryPromise({
@@ -272,20 +272,17 @@ export const authenticateUser = (
     });
 
     if (!isValid) {
-      yield* Effect.fail(new AuthError("Invalid email or password"));
+      return yield* Effect.fail(new AuthError("Invalid email or password"));
     }
 
     const disabledValue = userData["disabled"];
-    const disabled =
-      disabledValue === "true" ||
-      disabledValue === true ||
-      disabledValue === "1";
+    const disabled = disabledValue === "true" || disabledValue === "1";
 
     const user: User = {
       id: userId as string,
       email: userData["email"] as string,
       createdAt: userData["createdAt"] as string,
-      disabled: disabled || undefined,
+      disabled,
     };
 
     return user;
@@ -310,16 +307,13 @@ export const getUserById = (
     }
 
     const disabledValue = userData["disabled"];
-    const disabled =
-      disabledValue === "true" ||
-      disabledValue === true ||
-      disabledValue === "1";
+    const disabled = disabledValue === "true" || disabledValue === "1";
 
     const user: User = {
       id: id as string,
       email: userData["email"] as string,
       createdAt: userData["createdAt"] as string,
-      disabled: disabled || undefined,
+      disabled,
     };
 
     return user;

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { getHourHeight, getStartHourFromTimeline } from "./calendar-utils.ts";
+import { getHourHeight, getStartHourFromTimeline } from "./calendar-utils";
 
 /**
  * Renders a visual selection indicator overlay

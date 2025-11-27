@@ -5,14 +5,14 @@
   "private": true,
   "devDependencies": {
     "@biomejs/biome": "latest",
-    "@effect/language-service": "^0.55.2",
+    "@effect/language-service": "^0.57.0",
     "@types/bun": "latest",
     "sharp": "^0.34.5",
     "tailwindcss": "latest",
     "ultracite": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "bun run --bun build.ts",

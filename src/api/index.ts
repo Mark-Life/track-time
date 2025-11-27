@@ -1,4 +1,4 @@
-import { isAuthError, isCsrfError } from "~/lib/auth/auth.ts";
+import { isAuthError, isCsrfError } from "~/lib/auth/auth";
 import {
   handleCsrfToken,
   handleLogin,
@@ -6,25 +6,25 @@ import {
   handleMe,
   handleRefreshToken,
   handleRegister,
-} from "./auth.ts";
+} from "./auth";
 import {
   handleEntriesGet,
   handleEntryCreate,
   handleEntryDelete,
   handleEntryUpdate,
-} from "./entries.ts";
+} from "./entries";
 import {
   handleProjectCreate,
   handleProjectDelete,
   handleProjectsGet,
   handleProjectUpdate,
-} from "./projects.ts";
+} from "./projects";
 import {
   handleTimerGet,
   handleTimerStart,
   handleTimerStop,
   handleTimerUpdate,
-} from "./timer.ts";
+} from "./timer";
 
 type Server = ReturnType<typeof Bun.serve>;
 

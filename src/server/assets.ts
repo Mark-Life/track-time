@@ -5,8 +5,8 @@ import {
   LEADING_SLASH_REGEX,
   LOGIN_TILDE_PATH_REGEX,
   TILDE_PATH_REGEX,
-} from "./utils.ts";
-import { trackDependencies } from "./watcher.ts";
+} from "./utils";
+import { trackDependencies } from "./watcher";
 
 // Resolve to src/ directory
 // In development: import.meta.dir ends with /server or /server/, so go up one level

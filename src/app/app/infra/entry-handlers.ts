@@ -1,6 +1,6 @@
 import { Effect, Ref } from "effect";
-import type { Project } from "~/lib/types.ts";
-import { deleteEntry, getEntries, updateEntry } from "../api.ts";
+import type { Project } from "~/lib/types";
+import { deleteEntry, getEntries, updateEntry } from "../api";
 import {
   removeEntryDeleteLoading,
   removeEntrySaveLoading,
@@ -10,7 +10,7 @@ import {
   showEntryDeleteLoading,
   showEntrySaveLoading,
   showFormError,
-} from "../ui/dom.ts";
+} from "../ui/dom";
 
 /**
  * Validates entry form data

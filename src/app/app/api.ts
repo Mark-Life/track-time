@@ -6,8 +6,8 @@ import {
   getCachedWithRevalidate,
   invalidateCache,
   setCached,
-} from "~/lib/cache.ts";
-import { validateEntryDuration } from "~/lib/entry-validation.ts";
+} from "~/lib/cache";
+import { validateEntryDuration } from "~/lib/entry-validation";
 import {
   clearLocalTimer,
   clearSyncedEntry,
@@ -16,8 +16,8 @@ import {
   saveEntryToLocal,
   saveTimerToLocal,
   updateLocalEntry,
-} from "~/lib/local-storage.ts";
-import type { Entry, Project, Timer } from "~/lib/types.ts";
+} from "~/lib/local-storage";
+import type { Entry, Project, Timer } from "~/lib/types";
 
 /**
  * Gets CSRF token from cookies.
@@ -48,7 +48,7 @@ const refreshCsrfToken = (): Effect.Effect<string, Error> =>
     });
 
     if (!response.ok) {
-      yield* Effect.fail(new Error("Failed to refresh CSRF token"));
+      return yield* Effect.fail(new Error("Failed to refresh CSRF token"));
     }
 
     const data = yield* Effect.tryPromise({
@@ -79,7 +79,9 @@ const handleCsrfError = (
 ): Effect.Effect<Response, Error> =>
   Effect.gen(function* () {
     if (response.status !== 403) {
-      yield* Effect.fail(new Error(`Unexpected status: ${response.status}`));
+      return yield* Effect.fail(
+        new Error(`Unexpected status: ${response.status}`)
+      );
     }
 
     console.log("[CSRF] Token expired, refreshing and retrying...");
@@ -213,8 +215,7 @@ export const stopTimer = Effect.gen(function* () {
   }
 
   if (!timer) {
-    yield* Effect.fail(new Error("No active timer"));
-    return;
+    return yield* Effect.fail(new Error("No active timer"));
   }
 
   const endedAt = new Date().toISOString();
@@ -304,8 +305,7 @@ export const updateTimer = (projectId?: string) =>
 
     if (!currentTimer) {
       yield* Effect.log("No active timer found, cannot update");
-      yield* Effect.fail(new Error("No active timer"));
-      return;
+      return yield* Effect.fail(new Error("No active timer"));
     }
 
     yield* Effect.log(
@@ -677,7 +677,9 @@ export const getProjects = Effect.gen(function* () {
 export const createProject = (name: string) =>
   Effect.gen(function* () {
     if (!navigator.onLine) {
-      yield* Effect.fail(new Error("Cannot create project while offline"));
+      return yield* Effect.fail(
+        new Error("Cannot create project while offline")
+      );
     }
 
     const makeCreateProjectRequest = (token: string | null) =>
@@ -715,7 +717,7 @@ export const createProject = (name: string) =>
         try: () => createResponse.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to create project" }),
       });
-      yield* Effect.fail(new Error(errorData.error));
+      return yield* Effect.fail(new Error(errorData.error));
     }
 
     const project: Project = yield* Effect.tryPromise({
@@ -732,7 +734,9 @@ export const createProject = (name: string) =>
 export const updateProject = (id: string, name: string) =>
   Effect.gen(function* () {
     if (!navigator.onLine) {
-      yield* Effect.fail(new Error("Cannot update project while offline"));
+      return yield* Effect.fail(
+        new Error("Cannot update project while offline")
+      );
     }
 
     const makeUpdateProjectRequest = (token: string | null) =>
@@ -770,7 +774,7 @@ export const updateProject = (id: string, name: string) =>
         try: () => updateResponse.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to update project" }),
       });
-      yield* Effect.fail(new Error(errorData.error));
+      return yield* Effect.fail(new Error(errorData.error));
     }
 
     const project: Project = yield* Effect.tryPromise({
@@ -787,7 +791,9 @@ export const updateProject = (id: string, name: string) =>
 export const deleteProject = (id: string, deleteEntries: boolean) =>
   Effect.gen(function* () {
     if (!navigator.onLine) {
-      yield* Effect.fail(new Error("Cannot delete project while offline"));
+      return yield* Effect.fail(
+        new Error("Cannot delete project while offline")
+      );
     }
 
     const makeDeleteProjectRequest = (token: string | null) =>
@@ -822,7 +828,7 @@ export const deleteProject = (id: string, deleteEntries: boolean) =>
         try: () => deleteResponse.json() as Promise<{ error: string }>,
         catch: () => ({ error: "Failed to delete project" }),
       });
-      yield* Effect.fail(new Error(errorData.error));
+      return yield* Effect.fail(new Error(errorData.error));
     }
 
     // Invalidate projects cache and entries cache (if entries were deleted)
@@ -831,7 +837,7 @@ export const deleteProject = (id: string, deleteEntries: boolean) =>
 
 export const getCurrentUser = Effect.gen(function* () {
   if (!navigator.onLine) {
-    yield* Effect.fail(new Error("Cannot get user while offline"));
+    return yield* Effect.fail(new Error("Cannot get user while offline"));
   }
 
   // Check cache first (long TTL for user)
@@ -851,7 +857,7 @@ export const getCurrentUser = Effect.gen(function* () {
 
   if (!response.ok) {
     handleAuthError(response);
-    yield* Effect.fail(new Error("Failed to get current user"));
+    return yield* Effect.fail(new Error("Failed to get current user"));
   }
 
   const data = yield* Effect.tryPromise({
@@ -870,7 +876,7 @@ export const getCurrentUser = Effect.gen(function* () {
 
 export const logout = Effect.gen(function* () {
   if (!navigator.onLine) {
-    yield* Effect.fail(new Error("Cannot logout while offline"));
+    return yield* Effect.fail(new Error("Cannot logout while offline"));
   }
 
   const response: Response = yield* Effect.tryPromise({
@@ -884,7 +890,7 @@ export const logout = Effect.gen(function* () {
 
   if (!response.ok) {
     handleAuthError(response);
-    yield* Effect.fail(new Error("Failed to logout"));
+    return yield* Effect.fail(new Error("Failed to logout"));
   }
 
   // Clear all cache on logout

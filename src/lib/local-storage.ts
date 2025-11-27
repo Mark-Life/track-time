@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { Entry, Timer } from "./types.ts";
+import type { Entry, Timer } from "./types";
 
 const TIMER_KEY = "timer:active";
 const ENTRIES_KEY = "entries:pending";

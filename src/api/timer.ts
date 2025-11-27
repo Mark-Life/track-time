@@ -11,7 +11,7 @@ import {
   stopTimer,
   updateTimerProject,
 } from "~/lib/redis";
-import type { WebSocketMessage } from "~/lib/types.ts";
+import type { WebSocketMessage } from "~/lib/types";
 
 type Server = ReturnType<typeof Bun.serve>;
 

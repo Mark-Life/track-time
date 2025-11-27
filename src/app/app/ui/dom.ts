@@ -12,15 +12,15 @@ import {
   createCombobox,
   setComboboxValue,
   updateComboboxOptions,
-} from "~/components/ui/combobox.ts";
-import { showSkeleton } from "~/components/ui/skeleton.ts";
-import type { Entry, Project } from "~/lib/types.ts";
+} from "~/components/ui/combobox";
+import { showSkeleton } from "~/components/ui/skeleton";
+import type { Entry, Project } from "~/lib/types";
 import {
   entriesList,
   playPauseBtn,
   projectSubmitBtn,
   timerDisplay,
-} from "./dom-elements.ts";
+} from "./dom-elements";
 
 export const updateTimerDisplay = (text: string) =>
   Effect.sync(() => {

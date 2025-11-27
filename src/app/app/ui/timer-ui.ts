@@ -1,6 +1,6 @@
 import { Effect, Ref } from "effect";
-import type { Timer } from "~/lib/types.ts";
-import { showPauseButton, showPlayButton, updateTimerDisplay } from "./dom.ts";
+import type { Timer } from "~/lib/types";
+import { showPauseButton, showPlayButton, updateTimerDisplay } from "./dom";
 
 export const formatElapsedTime = (startedAt: string): string => {
   const startTime = new Date(startedAt).getTime();

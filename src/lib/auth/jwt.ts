@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { JWTHeader, JWTPayload } from "../types.ts";
+import type { JWTHeader, JWTPayload } from "../types";
 
 const base64UrlEncode = (str: string): string =>
   Buffer.from(str, "utf-8").toString("base64url");
@@ -29,7 +29,7 @@ const getJWTSecret = (): Effect.Effect<string, Error> =>
   Effect.gen(function* () {
     const secret = process.env["JWT_SECRET"];
     if (!secret) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new Error("JWT_SECRET environment variable is not set")
       );
     }
@@ -40,7 +40,7 @@ const getJWTSecret = (): Effect.Effect<string, Error> =>
     // Require minimum secret length for security (RFC 7518 recommends at least 256 bits = 32 bytes)
     // For HS256, secret should be at least 32 characters (256 bits)
     if (secretString.length < 32) {
-      yield* Effect.fail(
+      return yield* Effect.fail(
         new Error("JWT_SECRET must be at least 32 characters long for security")
       );
     }
@@ -85,7 +85,7 @@ export const verify = (token: string): Effect.Effect<JWTPayload, Error> =>
 
     const parts = token.split(".");
     if (parts.length !== 3) {
-      yield* Effect.fail(new Error("Invalid token format"));
+      return yield* Effect.fail(new Error("Invalid token format"));
     }
 
     const encodedHeader = parts[0];
@@ -94,7 +94,7 @@ export const verify = (token: string): Effect.Effect<JWTPayload, Error> =>
 
     const hasAllParts = encodedHeader && encodedPayload && signature;
     if (!hasAllParts) {
-      yield* Effect.fail(new Error("Invalid token format"));
+      return yield* Effect.fail(new Error("Invalid token format"));
     }
 
     const header: JWTHeader = yield* Effect.try({
@@ -104,11 +104,11 @@ export const verify = (token: string): Effect.Effect<JWTPayload, Error> =>
     });
 
     if (header.alg !== "HS256") {
-      yield* Effect.fail(new Error("Unsupported algorithm"));
+      return yield* Effect.fail(new Error("Unsupported algorithm"));
     }
 
     if (header.typ !== "JWT") {
-      yield* Effect.fail(new Error("Invalid token type"));
+      return yield* Effect.fail(new Error("Invalid token type"));
     }
 
     const unsignedToken = `${encodedHeader}.${encodedPayload}`;
@@ -119,7 +119,7 @@ export const verify = (token: string): Effect.Effect<JWTPayload, Error> =>
     const expectedSignature = hmac.digest("base64url");
 
     if (!constantTimeCompare(signature as string, expectedSignature)) {
-      yield* Effect.fail(new Error("Invalid token signature"));
+      return yield* Effect.fail(new Error("Invalid token signature"));
     }
 
     const payload: JWTPayload = yield* Effect.try({
@@ -130,7 +130,7 @@ export const verify = (token: string): Effect.Effect<JWTPayload, Error> =>
 
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp < now) {
-      yield* Effect.fail(new Error("Token expired"));
+      return yield* Effect.fail(new Error("Token expired"));
     }
 
     return payload;

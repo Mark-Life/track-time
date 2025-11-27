@@ -4,7 +4,7 @@ import {
   getVerifiedUserId,
   isAuthError,
 } from "~/lib/auth/auth";
-import { validateEntryDuration } from "~/lib/entry-validation.ts";
+import { validateEntryDuration } from "~/lib/entry-validation";
 import {
   createEntry,
   deleteEntry,
@@ -12,7 +12,7 @@ import {
   RedisLive,
   updateEntry,
 } from "~/lib/redis";
-import type { Entry, WebSocketMessage } from "~/lib/types.ts";
+import type { Entry, WebSocketMessage } from "~/lib/types";
 
 type Server = ReturnType<typeof Bun.serve>;
 

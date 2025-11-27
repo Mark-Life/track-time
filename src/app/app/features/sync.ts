@@ -1,21 +1,21 @@
 import { Effect, Ref } from "effect";
-import { CacheKeys, getCached } from "~/lib/cache.ts";
+import { CacheKeys, getCached } from "~/lib/cache";
 import {
   clearLocalTimer,
   clearSyncedEntry,
   getLocalEntries,
   getTimerFromLocal,
-} from "~/lib/local-storage.ts";
-import type { Entry, Timer } from "~/lib/types.ts";
+} from "~/lib/local-storage";
+import type { Entry, Timer } from "~/lib/types";
 import {
   createEntry,
   getEntries,
   getProjects,
   getTimer,
   startTimer,
-} from "../api.ts";
-import { renderEntries } from "../ui/dom.ts";
-import { startTimerUI } from "../ui/timer-ui.ts";
+} from "../api";
+import { renderEntries } from "../ui/dom";
+import { startTimerUI } from "../ui/timer-ui";
 
 export const syncWithServer = (
   timerRef: Ref.Ref<Timer | null>,
