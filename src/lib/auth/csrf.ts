@@ -36,6 +36,11 @@ export const createCsrfToken = (userId: string): Effect.Effect<string, Error> =>
 /**
  * Validates CSRF token for a user.
  * Returns true if token is valid, false otherwise.
+ * Tokens are reusable until they expire (TTL-based expiration).
+ * Security is maintained via:
+ * - User-bound tokens (attacker would need to steal the specific user's token)
+ * - SameSite=Lax cookie (prevents cross-site form submissions)
+ * - Same-origin policy (attacker can't read cookie value from another origin)
  */
 export const validateCsrfToken = (
   userId: string,
@@ -43,6 +48,7 @@ export const validateCsrfToken = (
 ): Effect.Effect<boolean, Error> =>
   Effect.gen(function* () {
     if (!token || token.length === 0) {
+      console.log("[CSRF Server] Token is empty or missing");
       return false;
     }
 
@@ -56,18 +62,12 @@ export const validateCsrfToken = (
       catch: (error) => new Error(`Failed to validate CSRF token: ${error}`),
     });
 
-    if (exists) {
-      // Token is valid - delete it to prevent reuse (double-submit cookie pattern)
-      yield* Effect.tryPromise({
-        try: async () => {
-          await redis.del(key);
-        },
-        catch: () => new Error("Failed to delete CSRF token"),
-      });
-      return true;
-    }
+    console.log(
+      `[CSRF Server] Token validation: ${exists ? "valid" : "invalid"} for key ${key.substring(0, 30)}...`
+    );
 
-    return false;
+    // Token is valid until TTL expires - no deletion needed
+    return exists;
   });
 
 /**

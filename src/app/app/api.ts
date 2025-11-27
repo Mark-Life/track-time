@@ -82,11 +82,21 @@ const handleCsrfError = (
       yield* Effect.fail(new Error(`Unexpected status: ${response.status}`));
     }
 
+    console.log("[CSRF] Token expired, refreshing and retrying...");
+
     // Refresh CSRF token
     const newCsrfToken = yield* refreshCsrfToken();
 
     // Retry the request with the new token
-    return yield* retryFn(newCsrfToken);
+    const retryResponse = yield* retryFn(newCsrfToken);
+
+    if (retryResponse.ok) {
+      console.log("[CSRF] Retry succeeded");
+    } else {
+      console.error("[CSRF] Retry failed:", retryResponse.status);
+    }
+
+    return retryResponse;
   });
 
 export const getTimer = Effect.gen(function* () {
