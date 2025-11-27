@@ -98,7 +98,7 @@ export const getTimer = Effect.gen(function* () {
   // Use stale-while-revalidate: return cached immediately, fetch fresh in background
   return yield* getCachedWithRevalidate(CacheKeys.timer, () =>
     Effect.gen(function* () {
-      const response = yield* Effect.tryPromise({
+      const response: Response = yield* Effect.tryPromise({
         try: () => fetch("/api/timer", { credentials: "include" }),
         catch: (error) => new Error(`Failed to fetch timer: ${error}`),
       });
@@ -129,6 +129,9 @@ export const startTimer = (startedAt?: string, projectId?: string) =>
 
     if (!navigator.onLine) {
       yield* saveTimerToLocal(timer);
+      // Update cache to keep it in sync with localStorage
+      yield* invalidateCache(CacheKeys.timer);
+      yield* setCached(CacheKeys.timer, timer);
       return timer;
     }
 
@@ -222,6 +225,8 @@ export const stopTimer = Effect.gen(function* () {
   if (!navigator.onLine) {
     yield* saveEntryToLocal(entry);
     yield* clearLocalTimer();
+    // Invalidate timer cache to prevent stale data
+    yield* invalidateCache(CacheKeys.timer);
     return entry;
   }
 

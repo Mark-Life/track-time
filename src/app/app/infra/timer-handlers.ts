@@ -110,8 +110,7 @@ export const setupTimerButtonHandler = (
     if (
       activeElement &&
       (activeElement.tagName === "INPUT" ||
-        activeElement.tagName === "TEXTAREA" ||
-        activeElement.isContentEditable)
+        activeElement.tagName === "TEXTAREA")
     ) {
       return;
     }

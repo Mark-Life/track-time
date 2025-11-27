@@ -33,6 +33,7 @@ export const showPlayButton = () =>
     playPauseBtn.setAttribute("aria-label", "Start timer");
     playPauseBtn.className =
       "bg-primary text-primary-foreground p-4 rounded-full hover:bg-primary/80 transition cursor-pointer flex items-center justify-center";
+    playPauseBtn.disabled = false;
   });
 
 export const showPauseButton = () =>
