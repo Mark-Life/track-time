@@ -70,11 +70,13 @@ export const createEntry = ({
   startedAt,
   endedAt,
   projectId,
+  id: clientId,
 }: {
   userId: string;
   startedAt: string;
   endedAt: string;
   projectId?: string;
+  id?: string;
 }): Effect.Effect<Entry, Error, Redis> =>
   Effect.gen(function* () {
     const redis = yield* Redis;
@@ -87,7 +89,7 @@ export const createEntry = ({
     const endTime = endedAtDate.getTime();
     const duration = (endTime - startTime) / (1000 * 60 * 60);
 
-    const id = crypto.randomUUID();
+    const id = clientId ?? crypto.randomUUID();
     const entry: Entry = {
       id,
       startedAt,

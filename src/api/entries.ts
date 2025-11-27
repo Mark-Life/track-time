@@ -16,6 +16,23 @@ import type { Entry, WebSocketMessage } from "~/lib/types.ts";
 
 type Server = ReturnType<typeof Bun.serve>;
 
+const parseEntryCreateBody = (
+  req: Request
+): Effect.Effect<
+  { startedAt: string; endedAt: string; projectId?: string; id?: string },
+  Error
+> =>
+  Effect.tryPromise({
+    try: () =>
+      req.json() as Promise<{
+        startedAt: string;
+        endedAt: string;
+        projectId?: string;
+        id?: string;
+      }>,
+    catch: (error) => new Error(`Failed to parse request body: ${error}`),
+  });
+
 const parseEntryUpdateBody = (
   req: Request
 ): Effect.Effect<
@@ -97,7 +114,7 @@ export const handleEntryCreate = (req: Request, server: Server) =>
       Effect.scoped(
         Effect.gen(function* () {
           const userId = yield* getVerifiedUserId(req);
-          const body = yield* parseEntryUpdateBody(req);
+          const body = yield* parseEntryCreateBody(req);
 
           const validationError = validateEntryDates(
             body.startedAt,
@@ -112,6 +129,7 @@ export const handleEntryCreate = (req: Request, server: Server) =>
             startedAt: body.startedAt,
             endedAt: body.endedAt,
             projectId: body.projectId,
+            id: body.id,
           });
 
           const message = createEntryCreatedMessage(entry);

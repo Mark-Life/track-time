@@ -386,25 +386,27 @@ export const getEntries = Effect.gen(function* () {
   }
 
   // Use stale-while-revalidate: return cached immediately, fetch fresh in background
-  const freshServerEntries = yield* getCachedWithRevalidate(CacheKeys.entries, () =>
-    Effect.gen(function* () {
-      const response = yield* Effect.tryPromise({
-        try: () => fetch("/api/entries", { credentials: "include" }),
-        catch: (error) => new Error(`Failed to fetch entries: ${error}`),
-      });
+  const freshServerEntries: Entry[] = yield* getCachedWithRevalidate(
+    CacheKeys.entries,
+    () =>
+      Effect.gen(function* () {
+        const response = yield* Effect.tryPromise({
+          try: () => fetch("/api/entries", { credentials: "include" }),
+          catch: (error) => new Error(`Failed to fetch entries: ${error}`),
+        });
 
-      if (!response.ok) {
-        handleAuthError(response);
-        return serverEntries;
-      }
+        if (!response.ok) {
+          handleAuthError(response);
+          return serverEntries;
+        }
 
-      const entries = yield* Effect.tryPromise({
-        try: () => response.json() as Promise<Entry[]>,
-        catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
-      });
+        const entries = yield* Effect.tryPromise({
+          try: () => response.json() as Promise<Entry[]>,
+          catch: (error) => new Error(`Failed to parse entries JSON: ${error}`),
+        });
 
-      return entries;
-    })
+        return entries;
+      })
   );
 
   // Merge local and server entries, removing duplicates by ID
@@ -418,7 +420,8 @@ export const getEntries = Effect.gen(function* () {
 export const createEntry = (
   startedAt: string,
   endedAt: string,
-  projectId?: string
+  projectId?: string,
+  id?: string
 ): Effect.Effect<Entry, Error> =>
   Effect.gen(function* () {
     yield* validateEntryDuration(startedAt, endedAt);
@@ -428,7 +431,7 @@ export const createEntry = (
     const duration = (endTime - startTime) / (1000 * 60 * 60);
 
     const entry: Entry = {
-      id: crypto.randomUUID(),
+      id: id ?? crypto.randomUUID(),
       startedAt,
       endedAt,
       duration,
@@ -457,6 +460,7 @@ export const createEntry = (
               startedAt,
               endedAt,
               ...(projectId ? { projectId } : {}),
+              ...(id ? { id } : {}),
             }),
           });
         },
@@ -490,8 +494,6 @@ export const createEntry = (
       },
     });
 
-    // Update localStorage with server entry
-    yield* saveEntryToLocal(serverEntry);
     // Invalidate entries cache
     yield* invalidateCache(CacheKeys.entries);
     return serverEntry;

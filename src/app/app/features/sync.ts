@@ -68,11 +68,12 @@ export const syncWithServer = (
     for (const localEntry of unsyncedEntries) {
       yield* Effect.catchAll(
         Effect.gen(function* () {
-          // Create entry on server
+          // Create entry on server with local entry's ID to preserve it
           yield* createEntry(
             localEntry.startedAt,
             localEntry.endedAt,
-            localEntry.projectId
+            localEntry.projectId,
+            localEntry.id
           );
           // Remove old local entry after successful sync
           yield* clearSyncedEntry(localEntry.id);
